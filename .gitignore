@@ -5,3 +5,8 @@ test-results/
 playwright-report/
 .env*
 *.local
+.venv*/
+# User-supplied samples and their raw model outputs stay local; the source
+# archive includes synthetic fixtures and the aggregate benchmark report.
+evidence/live-*
+evidence/ocr-*

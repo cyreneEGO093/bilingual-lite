@@ -2,7 +2,7 @@ import { browser } from 'wxt/browser';
 export interface Settings { endpoint: string; apiKey: string; language: string; textModel: string; imageModel: string }
 export const defaults: Settings = {
   endpoint: 'https://openrouter.ai/api/v1', apiKey: '', language: '简体中文',
-  textModel: 'google/gemini-2.5-flash-lite', imageModel: 'google/gemini-2.5-flash-lite'
+  textModel: 'deepseek/deepseek-v4.1-flash', imageModel: 'inclusionai/ling-3.0-flash-vl'
 };
 export function validateSettings(value: Settings): Settings {
   const s = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : ''])) as unknown as Settings;

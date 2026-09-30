@@ -1,7 +1,7 @@
 import type { Settings } from './settings';
 export class ApiError extends Error {
   constructor(public status: number) {
-    super(({ 401: 'API Key 无效，请在设置中检查。', 402: '账户余额不足，请充值或更换 Key。', 429: '请求过于频繁，请稍后手动重试。' } as Record<number, string>)[status] ?? `服务请求失败（HTTP ${status}），请稍后重试。`);
+    super(({ 401: 'API Key 无效，请在设置中检查。', 402: '账户余额不足，请充值或更换 Key。', 403: '模型访问被拒绝，可能存在地区或权限限制，请更换模型。', 429: '请求过于频繁，请稍后手动重试。' } as Record<number, string>)[status] ?? `服务请求失败（HTTP ${status}），请稍后重试。`);
   }
 }
 export class Queue {
@@ -22,7 +22,8 @@ export class Queue {
 export const queue = new Queue(3);
 export async function request(s: Settings, path: string, body?: unknown) {
   return queue.run(async () => {
-    if (body && !s.apiKey) throw new Error('请先打开设置，保存 API Key。');
+    const local = ['localhost','127.0.0.1','[::1]'].includes(new URL(s.endpoint).hostname);
+    if (body && !s.apiKey && !local) throw new Error('请先打开设置，保存 API Key。');
     let response: Response;
     try {
       response = await fetch(`${s.endpoint}${path}`, {
@@ -48,6 +49,10 @@ export function parseJson(content: unknown): unknown {
   catch { throw new Error('模型返回了无效 JSON，请手动重试或更换模型。'); }
 }
 export async function complete(s: Settings, model: string, messages: unknown[], maxTokens: number) {
-  const data = await request(s, '/chat/completions', { model, messages, temperature: 0, max_tokens: maxTokens, stream: false });
+  // This OpenRouter model otherwise spends the entire short translation budget on reasoning.
+  const extra = model === 'deepseek/deepseek-v4.1-flash' ? { reasoning: { enabled: false } } : {};
+  const data = await request(s, '/chat/completions', { model, messages, temperature: 0, max_tokens: maxTokens, stream: false, ...extra });
+  if (data.choices?.[0]?.finish_reason === 'content_filter' || data.choices?.[0]?.message?.refusal) throw new Error('模型服务拒绝处理此内容。请检查服务政策；本次不会自动重试。');
+  if (data.choices?.[0]?.finish_reason === 'length') throw new Error('模型输出达到上限，可能被思考 Token 耗尽。请更换非思考模型或缩小文本 / 图片。');
   return parseJson(data.choices?.[0]?.message?.content);
 }

@@ -40,8 +40,8 @@ try {
   const extension=resolve('.output/chrome-mv3');
   context=await chromium.launchPersistentContext(profile,{channel:'chromium',...(process.env.TEST_BROWSER_PATH?{executablePath:process.env.TEST_BROWSER_PATH}:{}),headless:true,viewport:{width:1100,height:850},args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
   const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
-  const id=new URL(worker.url()).host;
-  const options=await context.newPage(); await options.goto(`chrome-extension://${id}/options.html`);
+  const optionsUrl=`chrome-extension://${new URL(worker.url()).host}/options.html`;
+  const options=await context.newPage(); await options.goto(optionsUrl,{waitUntil:'domcontentloaded',timeout:15000});
   await options.locator('[name=endpoint]').fill(`${base}/v1`);
   await options.locator('[name=apiKey]').fill('mock-key');
   await options.getByRole('button',{name:'连接并查询模型'}).click();
@@ -75,6 +75,13 @@ try {
   await page.locator('#panel').evaluate(el=>el.style.width='600px');await page.waitForTimeout(100);await checkAlignment();
   await page.locator('img').hover();await page.getByRole('button',{name:'切换图片译文'}).click();assert.equal(await page.locator('.bubble').first().isVisible(),false);
   await page.getByRole('button',{name:'切换图片译文'}).click();assert.equal(imageRequests.length,1);
+  await page.getByRole('button',{name:'校准位置',exact:true}).click();
+  const before=await page.locator('.bubble').first().boundingBox();
+  await page.mouse.move(before.x+before.width/2,before.y+before.height/2);await page.mouse.down();await page.mouse.move(before.x+before.width/2+30,before.y+before.height/2+20,{steps:5});await page.mouse.up();
+  const moved=await page.locator('.bubble').first().boundingBox();assert.ok(Math.abs(moved.x-before.x-30)<2);assert.ok(Math.abs(moved.y-before.y-20)<2);
+  await page.keyboard.down('Shift');await page.mouse.move(moved.x+moved.width/2,moved.y+moved.height/2);await page.mouse.down();await page.mouse.move(moved.x+moved.width/2+25,moved.y+moved.height/2+15,{steps:5});await page.mouse.up();await page.keyboard.up('Shift');
+  const resized=await page.locator('.bubble').first().boundingBox();assert.ok(Math.abs(resized.width-moved.width-25)<2);assert.ok(Math.abs(resized.height-moved.height-15)<2);
+  await page.locator('img').hover({position:{x:10,y:10}});await page.getByRole('button',{name:'完成校准',exact:true}).click();assert.equal(imageRequests.length,1,'manual calibration does not call API');
   console.log('PASS image: cross-origin background fallback, 1600x1000 → 1280x800, 2 positioned bubbles, resize alignment, cached hide/show; 1 mock vision call.');
-  console.log('PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache; 3 mock calls; paid cost $0.');
+  console.log('PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; 3 mock calls; paid cost $0.');
 } finally { await context?.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true}); }

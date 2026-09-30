@@ -1,5 +1,6 @@
 import { complete, queue } from './api';
 import type { Settings } from './settings';
+import { fittedRect, type ImageLayout } from './image-geometry';
 export interface Bubble { original: string; translated: string; bbox: [number,number,number,number] }
 export function validateBubbles(value: unknown): Bubble[] {
   if (!Array.isArray(value) || value.length>60) throw new Error('气泡 JSON 必须是最多 60 项的数组。');
@@ -36,4 +37,20 @@ export async function fetchImage(url:unknown):Promise<string> {
     let binary=''; for(const chunk of chunks) for(let i=0;i<chunk.length;i+=8192) binary+=String.fromCharCode(...chunk.subarray(i,i+8192));
     return `data:${mime};base64,${btoa(binary)}`;
   });
+}
+export async function prepareRemoteImage(url:unknown,layout:ImageLayout):Promise<string> {
+  if(!layout||![layout.width,layout.height].every(n=>Number.isFinite(n)&&n>0&&n<=100000)||!['fill','contain','cover','none','scale-down'].includes(layout.fit)||typeof layout.position!=='string'||layout.position.length>100)throw new Error('图片布局参数无效。');
+  const raw=await fetchImage(url),[prefix,base64]=raw.split(',');
+  const bytes=Uint8Array.from(atob(base64!),c=>c.charCodeAt(0));
+  const bitmap=await createImageBitmap(new Blob([bytes],{type:prefix!.split(':')[1]!.split(';')[0]}));
+  try{
+    const scale=Math.min(1280/Math.max(layout.width,layout.height),Math.max(bitmap.width/layout.width,bitmap.height/layout.height));
+    const canvas=new OffscreenCanvas(Math.max(1,Math.round(layout.width*scale)),Math.max(1,Math.round(layout.height*scale)));
+    const ctx=canvas.getContext('2d')!;ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    const rect=fittedRect(bitmap.width,bitmap.height,layout.width,layout.height,layout.fit,layout.position);
+    ctx.drawImage(bitmap,rect.x*scale,rect.y*scale,rect.width*scale,rect.height*scale);
+    const blob=await canvas.convertToBlob({type:'image/jpeg',quality:.86});const result=new Uint8Array(await blob.arrayBuffer());
+    let binary='';for(let i=0;i<result.length;i+=8192)binary+=String.fromCharCode(...result.subarray(i,i+8192));
+    return `data:image/jpeg;base64,${btoa(binary)}`;
+  }finally{bitmap.close();}
 }

@@ -15,10 +15,11 @@ export async function mountSettings(popup = false) {
   const form = app.querySelector('form')!;
   const status = app.querySelector<HTMLElement>('#status')!;
   const report = (e: unknown) => { status.textContent = e instanceof Error ? e.message : String(e); };
+  form.inert = true;
   try {
     const settings = await getSettings();
     for (const [key, value] of Object.entries(settings)) (form.elements.namedItem(key) as HTMLInputElement).value = value;
-  } catch (e) { report(e); }
+  } catch (e) { report(e); } finally { form.inert = false; }
   const save = async () => saveSettings(Object.fromEntries(new FormData(form)) as unknown as Settings);
   form.addEventListener('submit', async e => { e.preventDefault(); try { await save(); report('已保存到本机。'); } catch (e) { report(e); } });
   app.querySelector('#models')!.addEventListener('click', async () => {
