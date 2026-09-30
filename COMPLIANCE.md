@@ -6,7 +6,7 @@
 
 | 内容 | 检查结果 | 发布处理 |
 |---|---|---|
-| `lib/`、`entrypoints/`、本项目脚本及测试 | Git 历史显示在本任务逐步实现；导入、版权注记、外部链接检索未发现复制其他漫画／网页翻译项目的实现 | 按用户要求发布为 GPL-3.0-only，保留项目版权与 SPDX 标识 |
+| `lib/`、`entrypoints/`、本项目脚本及测试 | 项目开发中逐步实现；导入、版权注记、外部链接检索未发现复制其他漫画／网页翻译项目的实现 | 发布为 GPL-3.0-only，保留项目版权与 SPDX 标识 |
 | WXT 0.21.4 | 构建产物包含运行时及框架生成的入口代码；npm 声明 MIT，上游发布标签对应 `8fea9b4837282f4ad2a0d085ced6bee1a7de08fb` | 附原 MIT 版权和许可全文；源码包包含对应 TypeScript 源码及实际使用模块 |
 | `@wxt-dev/browser` 0.3.4 | 构建产物包含跨浏览器 API 选择器；同一 WXT 仓库，npm 声明 MIT，源码直接为 JavaScript | 附原 MIT 许可及精确 npm 源码快照 |
 | Vite、TypeScript、Vitest、Playwright、web-ext 等 | 构建、测试或审查工具；未整体装入扩展。Vite 的旧版 modulepreload 运行时补丁已关闭，支持范围内浏览器原生提供该能力 | 锁文件和依赖清单用于复现；不把开发工具二进制或 node_modules 发给用户 |
@@ -38,7 +38,7 @@ MIT 允许使用、修改与再分发，条件是保留相关版权与许可通�
 
 独立源码归档解压到空目录后执行 `npm ci` 和 `npm run build`，Chrome、Firefox 各 **18 个安装文件逐字节一致**。文件 SHA-256、Mozilla 检查结果和依赖审计原始结果保存在 `store/REPRODUCIBILITY.json`、`store/AMO-LINT.json`、`store/NPM-AUDIT.json`；这些报告不进入安装包。
 
-依赖扫描、模型目录查询及本轮本地模拟验收不产生付费推理费用。正式提交前仍需提供真实发布者信息和可公开下载的该版本源码；如果 AMO 要求真实服务验证，测试凭证应私下提供，不能出现在公开包内。不存在“本地检查通过就保证商店批准”的承诺。
+依赖扫描、模型目录查询及本地模拟验收不产生付费推理费用。正式提交前仍需提供真实发布者信息和可公开下载的该版本源码；如果 AMO 要求真实服务验证，测试凭证应私下提供，不能出现在公开包内。不存在“本地检查通过就保证商店批准”的承诺。
 
 AMO 的源码附件仅供审核员访问；GPL 对用户的源码提供义务需要另行履行。建议把本次源码 ZIP 与安装 ZIP 作为公开 Release 附件，并在商店描述链接到**这一版本的源码 ZIP**。参见 [Mozilla 源码提交要求](https://extensionworkshop.com/documentation/publish/source-code-submission/)、[数据同意机制](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/)、[附加组件政策](https://extensionworkshop.com/documentation/publish/add-on-policies/)。
 
