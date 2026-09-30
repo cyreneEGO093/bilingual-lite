@@ -2,6 +2,8 @@
 
 Copyright (C) 2026 Bilingual Lite contributors.
 
+This is a personal-use project developed entirely by GPT-6 Astra through vibe coding. There is no guarantee of reliability, accuracy, security, compatibility, future maintenance, updates, fixes, or responses to issues. Recorded tests are not a quality or support warranty.
+
 Project-specific source code, build/test scripts, documentation, the original icon in `assets/`, and synthetic fixtures are licensed under the **GNU General Public License, version 3 only (SPDX: GPL-3.0-only)**, except where another license is explicitly stated. See `LICENSE` for the complete terms.
 
 This program is distributed in the hope that it will be useful, but **WITHOUT ANY WARRANTY**, including the implied warranties of **MERCHANTABILITY** or **FITNESS FOR A PARTICULAR PURPOSE**. You may redistribute and modify it under GPL version 3. This release does not add an "or any later version" grant.

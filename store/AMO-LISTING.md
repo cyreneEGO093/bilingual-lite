@@ -10,6 +10,8 @@
 
 ## Description
 
+这是一个自用项目，完全由 GPT-6 Astra 以 vibe coding 方式开发。不对可靠性、准确性、安全性、兼容性或后续维护作任何保证，也不承诺更新、修复或回复反馈。测试记录不构成质量保证，请自行评估使用风险。
+
 双语轻译是一款轻量网页与漫画翻译扩展。无需安装本地 OCR 或 Python，使用您自己配置的 OpenAI 兼容 API 服务。
 
 - 网页阅读：滚动到可见段落时翻译，也可分批翻译当前已加载的整页内容。可切换双语或仅译文；异常批次保留原文，支持单独重试。
@@ -21,7 +23,11 @@
 
 浏览器内部页面和扩展商店等受保护页面不能翻译。当前版本面向桌面 Firefox，不在隐私浏览窗口运行。部分需要登录、重定向或禁止下载的图片仍可能无法处理。
 
-本扩展以 GPL-3.0-only 发布，第三方运行时保留 MIT 许可。发布时请在本段后添加该版本完整源码的公开下载链接。
+本扩展以 GPL-3.0-only 发布，第三方运行时保留 MIT 许可。
+
+项目主页：https://github.com/cyreneEGO093/bilingual-lite
+
+本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.0/bilingual-lite-0.3.0-source.zip
 
 ## Other submission fields
 
@@ -30,7 +36,8 @@
 - Icon: `assets/icon-512.png` or `public/icons/128.png` (upload separately).
 - Privacy policy: copy the complete `PRIVACY.md` text into AMO's privacy-policy field.
 - Source attachment: `bilingual-lite-0.3.0-source.zip`; build/review instructions: `BUILDING.md`.
-- Public source/homepage/support: fill in your actual public repository or release URL after creating it; do not publish a placeholder or use the extension ID as a contact address.
+- Homepage: https://github.com/cyreneEGO093/bilingual-lite
+- Support: https://github.com/cyreneEGO093/bilingual-lite/issues (no response or maintenance commitment).
 - Payment disclosure: API service may require a paid account; the extension is free.
 
 This file is not part of the installable extension ZIP.
