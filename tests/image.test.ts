@@ -1,6 +1,7 @@
 import { it, expect, vi, afterEach } from 'vitest';
 import { validateBubbles, translateImage, fetchImage } from '../lib/image-api';
 import { fittedRect, ImageOverlay } from '../lib/image-dom';
+import { drawGeometry, validateRegion, IMAGE_QUALITY } from '../lib/image-geometry';
 const settings={baseUrl:'https://openrouter.ai/api/v1',apiKey:'mock-key',targetLang:'简体中文',textModel:'test',visionModel:'vision'};
 const bubble={original:'Hello',translated:'你好',bbox:[100,90,320,430]};
 afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks();document.body.innerHTML='';});
@@ -26,6 +27,13 @@ it('rejects non-image and oversized downloads',async()=>{
 it('maps contain and cover crops, including object position',()=>{
   expect(fittedRect(1600,1000,800,800,'contain','50% 50%')).toEqual({x:0,y:150,width:800,height:500});
   expect(fittedRect(1600,1000,800,800,'cover','100% 50%')).toEqual({x:-480,y:0,width:1280,height:800});
+});
+it('crops before downsampling and uses the same geometry for page and background',()=>{
+  const layout={width:800,height:500,fit:'fill',position:'50% 50%'};
+  expect(drawGeometry(1600,1000,layout)).toMatchObject({width:1280,height:800});
+  expect(drawGeometry(1600,1000,{...layout,crop:{left:.5,top:.5,width:.25,height:.25}})).toEqual({width:400,height:250,x:-800,y:-500,drawWidth:1600,drawHeight:1000});
+  expect(drawGeometry(100,80,{...layout,width:100,height:80})).toMatchObject({width:100,height:80});
+  expect(()=>validateRegion({left:.9,top:0,width:.2,height:.3})).toThrow();expect(()=>validateRegion({left:0,top:0,width:NaN,height:1})).toThrow();expect(IMAGE_QUALITY).toBe(.85);
 });
 it('renders normalized bubbles safely and restores parent positioning',()=>{
   vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});vi.stubGlobal('requestAnimationFrame',()=>1);vi.stubGlobal('cancelAnimationFrame',()=>{});

@@ -1,30 +1,8 @@
 import type { Bubble } from './image-api';
-import { fittedRect, type ImageLayout } from './image-geometry';
+import { contentBox, captureImage, type ImageTarget } from './image-capture';
+export { captureImage } from './image-capture';
+export type { ImageTarget } from './image-capture';
 export { fittedRect } from './image-geometry';
-export type ImageTarget = HTMLImageElement | HTMLCanvasElement;
-function contentBox(target:ImageTarget) {
-  const css=getComputedStyle(target);
-  const pl=parseFloat(css.paddingLeft)||0,pt=parseFloat(css.paddingTop)||0;
-  return {css,pl,pt,w:target.clientWidth-pl-(parseFloat(css.paddingRight)||0),h:target.clientHeight-pt-(parseFloat(css.paddingBottom)||0)};
-}
-export async function captureImage(target:ImageTarget, fallback:(url:string,layout:ImageLayout)=>Promise<string>):Promise<string> {
-  const {css,w,h}=contentBox(target);
-  if(w<=0||h<=0)throw new Error('图片尚未显示。');
-  const nw=target instanceof HTMLImageElement?target.naturalWidth:target.width;
-  const nh=target instanceof HTMLImageElement?target.naturalHeight:target.height;
-  if(!nw||!nh)throw new Error('图片尚未加载。');
-  const scale=Math.min(1280/Math.max(w,h),Math.max(nw/w,nh/h));
-  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
-  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('无法创建图片画布。');
-  const rect=fittedRect(nw,nh,w,h,css.objectFit||'fill',css.objectPosition||'50% 50%');
-  const draw=(source:CanvasImageSource)=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(source,rect.x*scale,rect.y*scale,rect.width*scale,rect.height*scale);return canvas.toDataURL('image/jpeg',.86);};
-  try{return draw(target);}catch{
-    if(!(target instanceof HTMLImageElement))throw new Error('此 Canvas 受跨域保护，无法读取。请翻译原始图片。');
-    // Keep decode and compression in the background realm: Firefox otherwise
-    // taints the page canvas when drawing an extension-principal data URL.
-    return fallback(target.currentSrc||target.src,{width:w,height:h,fit:css.objectFit||'fill',position:css.objectPosition||'50% 50%'});
-  }
-}
 const parents=new Map<HTMLElement,{count:number;original:string}>();
 export class ImageOverlay {
   readonly host:HTMLDivElement;

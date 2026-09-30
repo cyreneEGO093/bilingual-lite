@@ -18,7 +18,13 @@ const translations={
 };
 const server=createServer(async(req,res)=>{
   try {
-    if(req.url==='/manga.png'){imageDownloads++;res.setHeader('Content-Type','image/png');res.end(await readFile('tests/fixtures/manga.png'));return;}
+    if(req.url==='/manga.png'||req.url==='/protected.png'){
+      // No ACAO. Simulate an anti-hotlink policy that rejects foreign referrers;
+      // the protected route also requires a page referrer, so background fetch fails.
+      if((req.headers.referer&&new URL(req.headers.referer).hostname!=='127.0.0.1')||(req.url==='/protected.png'&&!req.headers.referer)){res.statusCode=403;res.end('Forbidden');return;}
+      imageDownloads++;res.setHeader('Content-Type','image/png');res.end(await readFile('tests/fixtures/manga.png'));return;
+    }
+    if(req.url==='/protected'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<div style="width:800px"><img style="width:100%" src="http://localhost:${server.address().port}/protected.png"></div>`);return;}
     if(req.url==='/manga'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<html><head><title>Manga test</title></head><body style="margin:50px;background:#f4f6f0"><h1>漫画翻译 · 本地 Mock 验证</h1><div id="panel" style="width:800px"><img alt="Test manga" style="display:block;width:100%;height:auto" src="http://localhost:${server.address().port}/manga.png"></div></body></html>`);return;}
     if(req.url==='/v1/models') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:[{id:'mock-vision',architecture:{input_modalities:['text','image']},context_length:1000000,pricing:{prompt:'0'}}]}));return;}
     if(req.url==='/v1/chat/completions') {
@@ -48,6 +54,7 @@ try {
   try { await options.getByRole('status').filter({hasText:'连接成功'}).waitFor({timeout:10000}); }
   catch(e) { console.error('Options status:',await options.getByRole('status').textContent());throw e; }
   const page=await context.newPage(); await page.goto(base);
+  assert.equal((await fetch(`${base}/manga.png`,{headers:{Referer:'https://foreign.example/'}})).status,403);
   await page.getByRole('button',{name:'译 · 开启双语',exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('.bl-translation').length===5);
   assert.equal(requests.length,1); assert.equal(JSON.parse(requests[0].messages[1].content).length,5);
@@ -82,6 +89,8 @@ try {
   await page.keyboard.down('Shift');await page.mouse.move(moved.x+moved.width/2,moved.y+moved.height/2);await page.mouse.down();await page.mouse.move(moved.x+moved.width/2+25,moved.y+moved.height/2+15,{steps:5});await page.mouse.up();await page.keyboard.up('Shift');
   const resized=await page.locator('.bubble').first().boundingBox();assert.ok(Math.abs(resized.width-moved.width-25)<2);assert.ok(Math.abs(resized.height-moved.height-15)<2);
   await page.locator('img').hover({position:{x:10,y:10}});await page.getByRole('button',{name:'完成校准',exact:true}).click();assert.equal(imageRequests.length,1,'manual calibration does not call API');
+  await page.goto(`${base}/protected`);await page.locator('img').evaluate(img=>img.decode());await page.locator('img').hover();await page.getByRole('button',{name:'翻译图片',exact:true}).click();
+  await page.getByRole('status').filter({hasText:'403'}).waitFor();assert.equal(imageRequests.length,1,'protected download failure must not spend inference tokens');
   console.log('PASS image: cross-origin background fallback, 1600x1000 → 1280x800, 2 positioned bubbles, resize alignment, cached hide/show; 1 mock vision call.');
   console.log('PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; 3 mock calls; paid cost $0.');
 } finally { await context?.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true}); }
