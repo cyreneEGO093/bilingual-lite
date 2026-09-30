@@ -2,7 +2,7 @@ import { it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { candidates, chunks, TextTranslator } from '../lib/text-dom';
 import { translateText } from '../lib/text-api';
-const settings={endpoint:'https://openrouter.ai/api/v1',apiKey:'mock-key',language:'简体中文',textModel:'test',imageModel:'test'};
+const settings={baseUrl:'https://openrouter.ai/api/v1',apiKey:'mock-key',targetLang:'简体中文',textModel:'test',visionModel:'test'};
 afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();document.body.innerHTML='';});
 it('batches paragraphs into the chat completions route, deduplicates and caches',async()=>{
   const fetch=vi.fn().mockImplementation(async (_url,init)=>{

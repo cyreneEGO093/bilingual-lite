@@ -1,13 +1,13 @@
 import { it, expect, vi, afterEach } from 'vitest';
 import { validateBubbles, translateImage, fetchImage } from '../lib/image-api';
 import { fittedRect, ImageOverlay } from '../lib/image-dom';
-const settings={endpoint:'https://openrouter.ai/api/v1',apiKey:'mock-key',language:'简体中文',textModel:'test',imageModel:'vision'};
+const settings={baseUrl:'https://openrouter.ai/api/v1',apiKey:'mock-key',targetLang:'简体中文',textModel:'test',visionModel:'vision'};
 const bubble={original:'Hello',translated:'你好',bbox:[100,90,320,430]};
 afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks();document.body.innerHTML='';});
 it('uses image_url parts and validates the vision JSON',async()=>{
   const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify([bubble])}}]})});vi.stubGlobal('fetch',fetch);
   expect(await translateImage(settings,'data:image/jpeg;base64,YQ==')).toEqual([bubble]);
-  const body=JSON.parse(fetch.mock.calls[0]![1].body);expect(body.model).toBe('vision');expect(body.messages[1].content[1].image_url.url).toBe('data:image/jpeg;base64,YQ==');expect(body.max_tokens).toBe(3500);
+  const body=JSON.parse(fetch.mock.calls[0]![1].body);expect(body.model).toBe('vision');expect(body.messages[1].content[1].image_url.url).toBe('data:image/jpeg;base64,YQ==');expect(body.max_tokens).toBe(1500);
 });
 it.each([[320,90,100,430],[-1,0,400,400],[0,0,1001,400],[0,0,NaN,400],[0,10,20,10]])('rejects invalid bbox %j',(...bbox)=>{expect(()=>validateBubbles([{...bubble,bbox}])).toThrow();});
 it('allows empty image results and rejects oversized image input',async()=>{

@@ -41,7 +41,7 @@ try{
   const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
   // Use the actual options page to save BYOK settings in the temporary profile.
   const options=await context.newPage();await options.goto(`chrome-extension://${new URL(worker.url()).host}/options.html`);
-  await options.locator('[name=endpoint]').fill(`${base}/v1`);await options.locator('[name=apiKey]').fill(key);await options.locator('[name=imageModel]').fill(model);await options.getByRole('button',{name:'保存设置',exact:true}).click();await options.getByRole('status').filter({hasText:'已保存'}).waitFor();
+  await options.locator('[name=baseUrl]').fill(`${base}/v1`);await options.locator('[name=apiKey]').fill(key);await options.locator('[name=visionModel]').fill(model);await options.getByRole('button',{name:'保存设置',exact:true}).click();await options.getByRole('status').filter({hasText:'已保存'}).waitFor();
   const page=await context.newPage();
   for(let n=0;n<paths.length&&!blocked;n++){
     await page.goto(`${base}/?n=${n}`);await page.locator('img').evaluate(img=>img.decode());await page.locator('img').hover({position:{x:30,y:30}});await page.getByRole('button',{name:'翻译图片',exact:true}).click();

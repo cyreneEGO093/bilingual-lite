@@ -1,7 +1,22 @@
 import type { Settings } from './settings';
+
+export const MAX_OUTPUT_TOKENS = 1500;
+export const TEMPERATURE = 0.1;
+export interface TextPart { type: 'text'; text: string }
+export interface ImagePart { type: 'image_url'; image_url: { url: string } }
+export interface ChatMessage { role: 'system' | 'user'; content: string | (TextPart | ImagePart)[] }
+export interface ModelInfo {
+  id: string; vision: boolean; context?: number;
+  pricing?: { prompt?: string; completion?: string };
+  mandatoryReasoning: boolean;
+}
+interface CompletionResponse {
+  choices?: { finish_reason?: string; message?: { content?: unknown; refusal?: unknown } }[];
+  usage?: { completion_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } };
+}
 export class ApiError extends Error {
   constructor(public status: number) {
-    super(({ 401: 'API Key 无效，请在设置中检查。', 402: '账户余额不足，请充值或更换 Key。', 403: '模型访问被拒绝，可能存在地区或权限限制，请更换模型。', 429: '请求过于频繁，请稍后手动重试。' } as Record<number, string>)[status] ?? `服务请求失败（HTTP ${status}），请稍后重试。`);
+    super(({401:'API Key 无效，请在设置中检查。',402:'账户余额不足，请充值或更换 Key。',403:'模型访问被拒绝，请检查地区、权限或服务政策。',404:'模型不存在或没有满足账户条件的路由，请查询模型列表。',429:'请求过于频繁，请稍后重试。',503:'模型服务暂不可用，请稍后重试。'} as Record<number,string>)[status] ?? `服务请求失败（HTTP ${status}）。`);
   }
 }
 export class Queue {
@@ -20,39 +35,62 @@ export class Queue {
   }
 }
 export const queue = new Queue(3);
-export async function request(s: Settings, path: string, body?: unknown) {
+function retryDelay(header: string | null): number {
+  if (!header) return 500;
+  const seconds = Number(header);
+  return Number.isFinite(seconds) ? Math.max(0,seconds*1000) : Math.max(0,Date.parse(header)-Date.now());
+}
+export async function request(s: Settings, path: string, body?: unknown): Promise<unknown> {
   return queue.run(async () => {
-    const local = ['localhost','127.0.0.1','[::1]'].includes(new URL(s.endpoint).hostname);
+    const local = ['localhost','127.0.0.1','[::1]'].includes(new URL(s.baseUrl).hostname);
     if (body && !s.apiKey && !local) throw new Error('请先打开设置，保存 API Key。');
-    let response: Response;
-    try {
-      response = await fetch(`${s.endpoint}${path}`, {
-        method: body ? 'POST' : 'GET', credentials: 'omit', redirect: 'error',
-        headers: { 'Content-Type': 'application/json', ...(s.apiKey ? { Authorization: `Bearer ${s.apiKey}` } : {}) },
-        ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(60000)
-      });
-    } catch { throw new Error('连接失败或超时，请检查 API 地址、网络和代理。'); }
-    if (!response.ok) throw new ApiError(response.status);
-    const data = await response.json();
-    if (data.error) throw new Error('模型服务返回错误，请检查模型名称后重试。');
-    return data;
+    for (let attempt=0;attempt<2;attempt++) {
+      let response: Response;
+      try {
+        response = await fetch(`${s.baseUrl}${path}`, {
+          method: body ? 'POST' : 'GET', credentials:'omit', redirect:'error',
+          headers:{'Content-Type':'application/json',...(s.apiKey?{Authorization:`Bearer ${s.apiKey}`}:{})},
+          ...(body?{body:JSON.stringify(body)}:{}), signal:AbortSignal.timeout(60000)
+        });
+      } catch { throw new Error('连接失败或超时，请检查地址和网络。本次不自动重发，以免重复计费。'); }
+      if (!response.ok) {
+        const delay=retryDelay(response.headers?.get('Retry-After')??null);
+        if(attempt===0 && [429,503].includes(response.status) && Number.isFinite(delay) && delay<=5000){
+          await response.body?.cancel().catch(()=>{});
+          await new Promise(resolve=>setTimeout(resolve,delay)); continue;
+        }
+        throw new ApiError(response.status);
+      }
+      const data: unknown=await response.json();
+      if (!data || typeof data!=='object' || 'error' in data) throw new Error('模型服务返回错误，请检查模型和请求格式。');
+      return data;
+    }
+    throw new Error('服务重试失败。');
   });
 }
-export async function listModels(s: Settings) {
-  const data = await request(s, '/models');
-  if (!Array.isArray(data.data)) throw new Error('模型列表格式无效。');
-  return data.data.filter((m: any) => typeof m.id === 'string').map((m: any) => ({ id: m.id, vision: m.architecture?.input_modalities?.includes('image') === true, context: m.context_length, pricing: m.pricing }));
+export async function listModels(s: Settings): Promise<ModelInfo[]> {
+  const data=await request(s,'/models') as {data?: unknown};
+  if(!Array.isArray(data.data))throw new Error('模型列表格式无效。');
+  return data.data.filter((m: {id?:unknown})=>typeof m?.id==='string').map(m=>({
+    id:m.id, vision:m.architecture?.input_modalities?.includes('image')===true,
+    context:m.context_length, pricing:m.pricing, mandatoryReasoning:m.reasoning?.mandatory===true
+  }));
 }
 export function parseJson(content: unknown): unknown {
-  if (typeof content !== 'string') throw new Error('模型未返回文本。');
-  try { return JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')); }
-  catch { throw new Error('模型返回了无效 JSON，请手动重试或更换模型。'); }
+  if(typeof content!=='string')throw new Error('模型未返回文本。');
+  try{return JSON.parse(content.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''));}
+  catch{throw new Error('模型未返回有效 JSON，请缩小框选范围或更换模型。');}
 }
-export async function complete(s: Settings, model: string, messages: unknown[], maxTokens: number) {
-  // This OpenRouter model otherwise spends the entire short translation budget on reasoning.
-  const extra = model === 'deepseek/deepseek-v4.1-flash' ? { reasoning: { enabled: false } } : {};
-  const data = await request(s, '/chat/completions', { model, messages, temperature: 0, max_tokens: maxTokens, stream: false, ...extra });
-  if (data.choices?.[0]?.finish_reason === 'content_filter' || data.choices?.[0]?.message?.refusal) throw new Error('模型服务拒绝处理此内容。请检查服务政策；本次不会自动重试。');
-  if (data.choices?.[0]?.finish_reason === 'length') throw new Error('模型输出达到上限，可能被思考 Token 耗尽。请更换非思考模型或缩小文本 / 图片。');
-  return parseJson(data.choices?.[0]?.message?.content);
+export async function complete(s: Settings, model: string, messages: ChatMessage[]): Promise<unknown> {
+  // OpenRouter's documented normalized switch. This is a raw HTTP body, not SDK extra_body.
+  const data=await request(s,'/chat/completions',{
+    model,messages,temperature:TEMPERATURE,max_tokens:MAX_OUTPUT_TOKENS,stream:false,
+    reasoning:{enabled:false}
+  }) as CompletionResponse;
+  const choice=data.choices?.[0];
+  if(choice?.finish_reason==='content_filter'||choice?.message?.refusal)throw new Error('模型服务拒绝处理此内容。本次不会自动重试。');
+  if((data.usage?.completion_tokens_details?.reasoning_tokens??0)>0)throw new Error('服务仍消耗了思考 Token，未遵守关闭思考的请求。请更换可禁用思考的模型。');
+  if((data.usage?.completion_tokens??0)>MAX_OUTPUT_TOKENS)throw new Error('服务返回的 Token 用量超过上限，请更换遵守输出限制的模型。');
+  if(choice?.finish_reason==='length')throw new Error('译文达到 1500 Token 上限。请减少文本或使用手动框选；不会自动增加预算。');
+  return parseJson(choice?.message?.content);
 }

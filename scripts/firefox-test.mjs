@@ -43,7 +43,7 @@ try{
   await command('POST',`/session/${session}/moz/context`,{context:'content'});
   const handles=await command('GET',`/session/${session}/window/handles`);await command('POST',`/session/${session}/window`,{handle:handles.at(-1)});
   await wait("return !!document.querySelector('[name=textModel]')?.value");
-  await run("document.querySelector('[name=endpoint]').value=arguments[0];document.querySelector('[name=apiKey]').value='mock-key';document.querySelector('#models').click();",[`${base}/v1`]);
+  await run("document.querySelector('[name=baseUrl]').value=arguments[0];document.querySelector('[name=apiKey]').value='mock-key';document.querySelector('#models').click();",[`${base}/v1`]);
   await wait("return document.querySelector('#status').textContent.includes('连接成功')");
   await go(base);await wait("return !!document.querySelector('[data-bl-owned=controls]')");
   await run("document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('button').click()");

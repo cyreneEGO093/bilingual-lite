@@ -5,11 +5,11 @@ export async function mountSettings(popup = false) {
   const app = document.querySelector<HTMLElement>('#app')!;
   app.innerHTML = `<header><span class="mark">译</span><div><h1>双语轻译</h1><p>原文在上，理解在旁。</p></div></header>
     ${popup ? '<button id="toggle" class="primary" type="button">切换当前网页翻译 · Alt+Shift+T</button>' : ''}
-    <form><label>API Endpoint<input name="endpoint" type="url" required></label>
+    <form><label>API Endpoint<input name="baseUrl" type="url" required></label>
     <label>API Key<input name="apiKey" type="password" autocomplete="off" placeholder="仅保存在本机"></label>
-    <label>目标语言<select name="language"><option>简体中文</option><option>繁體中文</option><option>English</option><option>日本語</option><option>한국어</option><option>Français</option><option>Deutsch</option><option>Español</option></select></label>
+    <label>目标语言<select name="targetLang"><option>简体中文</option><option>繁體中文</option><option>English</option><option>日本語</option><option>한국어</option><option>Français</option><option>Deutsch</option><option>Español</option></select></label>
     <label>文本模型<input name="textModel" list="text-models" required></label><datalist id="text-models"></datalist>
-    <label>图片 / 漫画模型<input name="imageModel" list="image-models" required></label><datalist id="image-models"></datalist>
+    <label>图片 / 漫画模型<input name="visionModel" list="image-models" required></label><datalist id="image-models"></datalist>
     <div class="actions"><button class="primary" type="submit">保存设置</button><button id="models" type="button">连接并查询模型</button></div></form>
     <p id="status" role="status" aria-live="polite"></p><footer>只翻译可见段落；图片需手动点击。内容会发送至您设置的 API。密钥保存在本机，不同步。每次调用可能计费。</footer>`;
   const form = app.querySelector('form')!;
@@ -31,7 +31,7 @@ export async function mountSettings(popup = false) {
       for (const [id, visionOnly] of [['text-models', false], ['image-models', true]] as const) {
         const list = app.querySelector(`#${id}`)!; list.replaceChildren();
         for (const model of result.data) {
-          if (visionOnly && !model.vision) continue;
+          if (model.mandatoryReasoning || (visionOnly && !model.vision)) continue;
           const option = document.createElement('option'); option.value = model.id;
           option.label = `${model.context ?? '?'} context · $${Number(model.pricing?.prompt ?? 0) * 1e6}/M input`;
           list.append(option);

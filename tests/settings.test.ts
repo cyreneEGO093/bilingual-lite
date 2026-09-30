@@ -8,7 +8,11 @@ it('loads defaults and stores BYOK in local storage only', async()=>{
   expect(local.set).toHaveBeenCalledWith({settings:{...defaults,apiKey:'mock-key'}});
 });
 it('rejects insecure remote endpoints and URL credentials',()=>{
-  expect(()=>validateSettings({...defaults,endpoint:'http://example.com/v1'})).toThrow();
-  expect(()=>validateSettings({...defaults,endpoint:'https://user:pass@example.com/v1'})).toThrow();
-  expect(validateSettings({...defaults,endpoint:'http://127.0.0.1:8787/v1/'}).endpoint).toBe('http://127.0.0.1:8787/v1');
+  expect(()=>validateSettings({...defaults,baseUrl:'http://example.com/v1'})).toThrow();
+  expect(()=>validateSettings({...defaults,baseUrl:'https://user:pass@example.com/v1'})).toThrow();
+  expect(validateSettings({...defaults,baseUrl:'http://127.0.0.1:8787/v1/'}).baseUrl).toBe('http://127.0.0.1:8787/v1');
+});
+it('migrates old field names and preserves the existing key',async()=>{
+  local.get.mockResolvedValue({settings:{endpoint:'https://example.com/v1',imageModel:'old-vision',language:'日本語',apiKey:'existing-key',textModel:'old-text'}});
+  expect(await getSettings()).toEqual({baseUrl:'https://example.com/v1',visionModel:'old-vision',targetLang:'日本語',apiKey:'existing-key',textModel:'old-text'});
 });

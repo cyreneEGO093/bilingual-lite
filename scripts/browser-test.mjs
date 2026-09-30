@@ -42,7 +42,7 @@ try {
   const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
   const optionsUrl=`chrome-extension://${new URL(worker.url()).host}/options.html`;
   const options=await context.newPage(); await options.goto(optionsUrl,{waitUntil:'domcontentloaded',timeout:15000});
-  await options.locator('[name=endpoint]').fill(`${base}/v1`);
+  await options.locator('[name=baseUrl]').fill(`${base}/v1`);
   await options.locator('[name=apiKey]').fill('mock-key');
   await options.getByRole('button',{name:'连接并查询模型'}).click();
   try { await options.getByRole('status').filter({hasText:'连接成功'}).waitFor({timeout:10000}); }
