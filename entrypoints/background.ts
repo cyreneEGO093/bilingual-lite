@@ -4,6 +4,7 @@ import { listModels } from '../lib/api';
 import { translateText } from '../lib/text-api';
 import { translateImage, translateSnippet } from '../lib/image-api';
 import { prepareRemoteImage } from '../lib/image-download';
+import { ensureImageAccess } from '../lib/image-access';
 export default defineBackground(() => {
   // Chromium can prevent content scripts from reading local storage directly.
   browser.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
@@ -23,7 +24,10 @@ export default defineBackground(() => {
     (async () => {
       if (message?.type === 'models' && sender.url?.startsWith(browser.runtime.getURL(''))) return listModels(await getSettings());
       if (message?.type === 'translateText' && sender.tab) return translateText(await getSettings(),message.items);
-      if (message?.type === 'fetchImage' && sender.tab) return prepareRemoteImage(message.url,message.layout);
+      if (message?.type === 'fetchImage' && sender.tab) {
+        await ensureImageAccess(message.url);
+        return prepareRemoteImage(message.url,message.layout);
+      }
       if (message?.type === 'translateImage' && sender.tab) return translateImage(await getSettings(),message.dataUrl);
       if (message?.type === 'translateSnippet' && sender.tab) return translateSnippet(await getSettings(),message.dataUrl);
       throw new Error('未知请求。');

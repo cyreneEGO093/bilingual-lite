@@ -4,6 +4,7 @@ import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
+import { startPixivProxy } from './pixiv-test-proxy.mjs';
 
 const requests=[];
 const imageRequests=[],snippetRequests=[];let imageDownloads=0;
@@ -41,10 +42,11 @@ const server=createServer(async(req,res)=>{
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const base=`http://127.0.0.1:${server.address().port}`;
 const profile=await mkdtemp(resolve(tmpdir(),'bilingual-test-'));
+const pixiv=await startPixivProxy();
 let context;
 try {
   const extension=resolve('dist/chrome-mv3');
-  context=await chromium.launchPersistentContext(profile,{channel:'chromium',...(process.env.TEST_BROWSER_PATH?{executablePath:process.env.TEST_BROWSER_PATH}:{}),headless:true,viewport:{width:1100,height:850},args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
+  context=await chromium.launchPersistentContext(profile,{channel:'chromium',...(process.env.TEST_BROWSER_PATH?{executablePath:process.env.TEST_BROWSER_PATH}:{}),headless:true,ignoreHTTPSErrors:true,viewport:{width:1100,height:850},args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`,`--proxy-server=http://127.0.0.1:${pixiv.port}`,'--ignore-certificate-errors']});
   const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
   const optionsUrl=`chrome-extension://${new URL(worker.url()).host}/options.html`;
   const options=await context.newPage(); await options.goto(optionsUrl,{waitUntil:'domcontentloaded',timeout:15000});
@@ -69,6 +71,11 @@ try {
   await page.locator('#dynamic').scrollIntoViewIfNeeded();await page.locator('#dynamic + .bl-translation').waitFor();
   await page.getByRole('button',{name:'译 · 关闭翻译',exact:true}).click();
   assert.equal(await page.locator('.bl-translation').count(),0);
+  const toast=page.getByRole('status');
+  assert.equal(await toast.isVisible(),true);
+  await page.waitForTimeout(1800);assert.equal(await toast.isVisible(),true);
+  await toast.waitFor({state:'hidden',timeout:2000});
+  assert.equal(await page.getByRole('button',{name:'译 · 开启翻译',exact:true}).isVisible(),true);
   await page.getByRole('button',{name:'译 · 开启翻译',exact:true}).click();
   await page.locator('#dynamic + .bl-translation').waitFor();
   assert.equal(requests.length,3,'restart reuses background cache');
@@ -102,6 +109,27 @@ try {
   await page.locator('img').hover({position:{x:10,y:10}});await page.getByRole('button',{name:'全文翻译',exact:true}).click();assert.equal(imageRequests.length,1,'full result is cached');
   await page.goto(`${base}/protected`);await page.locator('img').evaluate(img=>img.decode());await page.locator('img').hover();await page.getByRole('button',{name:'全文翻译',exact:true}).click();
   await page.getByRole('status').filter({hasText:'403'}).waitFor();assert.equal(imageRequests.length,1,'protected download failure must not spend inference tokens');
-  console.log('PASS image: CORS/hotlink fallback and 403, 1280x800 full image, 400x200 crop, reverse drag, Escape cancellation, exact snip placement, resize, hide/show, cached full; 1 full + 1 snippet mock call.');
+  // Real browser networking against simulated Pixiv HTTPS origins. The CDN
+  // requires Referer and deliberately supplies no CORS permission or cache.
+  const cdn='https://i.pximg.net/test.png';
+  assert.equal(await worker.evaluate(async url=>(await fetch(url)).status,cdn),403,'before installation the extension download is rejected');
+  await page.goto('https://www.pixiv.net/artworks/test');await page.locator('img').evaluate(img=>img.decode());
+  await page.locator('img').hover();await page.getByRole('button',{name:'全文翻译',exact:true}).click();
+  await page.locator('.bubble').first().waitFor({timeout:15000});assert.equal(imageRequests.length,2);
+  const pixivFull=await page.evaluate(async data=>{const img=new Image();img.src=data;await img.decode();return[img.width,img.height];},imageRequests[1].messages[1].content[1].image_url.url);assert.deepEqual(pixivFull,[1280,800]);
+  await page.locator('img').hover({position:{x:5,y:5}});await page.getByRole('button',{name:'手动框选',exact:true}).click();
+  const pbox=await page.locator('img').boundingBox();
+  await page.mouse.move(pbox.x+pbox.width*.6,pbox.y+pbox.height*.15);await page.mouse.down();await page.mouse.move(pbox.x+pbox.width*.85,pbox.y+pbox.height*.35,{steps:5});await page.mouse.up();
+  await page.locator('.bubble').filter({hasText:'局部测试译文'}).waitFor();assert.equal(snippetRequests.length,2);
+  const pixivCrop=await page.evaluate(async data=>{const img=new Image();img.src=data;await img.decode();return[img.width,img.height];},snippetRequests[1].messages[1].content[1].image_url.url);assert.deepEqual(pixivCrop,[400,200]);
+  assert.deepEqual(pixiv.requests.map(r=>r.status),[403,200,200,200]);
+  for(const req of pixiv.requests.slice(2)){assert.equal(req.referer,'https://www.pixiv.net/');assert.equal(req.cookie,undefined);assert.equal(req.authorization,undefined);}
+  await page.getByRole('status').waitFor({state:'hidden',timeout:4000});
+  await page.screenshot({path:'evidence/pixiv-chrome.png'});
+  // Installing the rule must not change arbitrary page fetches to that CDN.
+  await page.goto(base);assert.equal(await page.evaluate(async url=>{try{await fetch(url);return true;}catch{return false;}},cdn),false);
+  assert.equal(pixiv.requests.at(-1).status,403);assert.notEqual(pixiv.requests.at(-1).referer,'https://www.pixiv.net/');
+  console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');
+  console.log(`PASS image: CORS/hotlink fallback and 403, 1280x800 full image, 400x200 crop, reverse drag, Escape cancellation, exact snip placement, resize, hide/show, cached full; ${imageRequests.length} full + ${snippetRequests.length} snippet mock calls.`);
   console.log('PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; 3 mock calls; paid cost $0.');
-} finally { await context?.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true}); }
+} finally { await context?.close();await pixiv.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true}); }

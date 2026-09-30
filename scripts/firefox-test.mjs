@@ -6,6 +6,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import net from 'node:net';
+import { startPixivProxy } from './pixiv-test-proxy.mjs';
 async function freePort(){const socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const port=socket.address().port;await new Promise(r=>socket.close(r));return port;}
 if(!process.env.TEST_FIREFOX_PATH||!process.env.GECKODRIVER_PATH)throw new Error('Set TEST_FIREFOX_PATH and GECKODRIVER_PATH.');
 let textRequests=0,imageRequests=0,snippetRequests=0,downloads=0;
@@ -26,6 +27,7 @@ const server=createServer(async(req,res)=>{
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const base=`http://127.0.0.1:${server.address().port}`,port=await freePort();
+const pixiv=await startPixivProxy();
 const driver=spawn(process.env.GECKODRIVER_PATH,['--port',String(port),'--allow-system-access'],{windowsHide:true,stdio:['ignore','pipe','pipe']});
 let session;
 const command=async(method,path,body)=>{const response=await fetch(`http://127.0.0.1:${port}${path}`,{method,...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(45000)});const data=await response.json();if(!response.ok)throw new Error(JSON.stringify(data.value));return data.value;};
@@ -35,7 +37,7 @@ const go=url=>command('POST',`/session/${session}/url`,{url});
 try{
   await new Promise((resolve,reject)=>{driver.stdout.on('data',chunk=>{if(chunk.toString().includes('Listening on'))resolve();});driver.on('error',reject);setTimeout(()=>reject(new Error('geckodriver startup timeout')),10000).unref();});
   const uuid='59fae133-0e40-4cd1-b538-6c7a6c402b16';
-  const created=await command('POST','/session',{capabilities:{alwaysMatch:{browserName:'firefox','moz:firefoxOptions':{binary:process.env.TEST_FIREFOX_PATH,args:['-headless'],prefs:{'extensions.webextensions.uuids':JSON.stringify({'bilingual-lite@example.org':uuid})}}}}});session=created.sessionId;
+  const created=await command('POST','/session',{capabilities:{alwaysMatch:{browserName:'firefox',acceptInsecureCerts:true,'moz:firefoxOptions':{binary:process.env.TEST_FIREFOX_PATH,args:['-headless'],prefs:{'extensions.webextensions.uuids':JSON.stringify({'bilingual-lite@example.org':uuid}),'network.proxy.type':1,'network.proxy.ssl':'127.0.0.1','network.proxy.ssl_port':pixiv.port,'network.proxy.no_proxies_on':'localhost,127.0.0.1'}}}}});session=created.sessionId;
   await command('POST',`/session/${session}/window/rect`,{width:1100,height:1000});
   await command('POST',`/session/${session}/moz/addon/install`,{path:resolve('dist/firefox-mv3'),temporary:true});
   await command('POST',`/session/${session}/moz/context`,{context:'chrome'});
@@ -66,5 +68,19 @@ try{
   await wait("return [...document.querySelector('[data-bl-owned=image-overlay]').shadowRoot.querySelectorAll('.bubble')].some(n=>n.textContent==='Firefox 局部译文')");assert.equal(snippetRequests,1);
   const cropAligned=await run("const i=document.querySelector('img').getBoundingClientRect(),b=[...document.querySelector('[data-bl-owned=image-overlay]').shadowRoot.querySelectorAll('.bubble')].find(n=>n.textContent==='Firefox 局部译文').getBoundingClientRect();return Math.abs(b.x-i.x-i.width*.6)<2 && Math.abs(b.y-i.y-i.height*.15)<2 && Math.abs(b.width-i.width*.25)<2");assert.ok(cropAligned);
   await writeFile('evidence/firefox-snip.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  // The proxy reproduces pximg's Referer gate without relying on external data.
+  await go('https://www.pixiv.net/artworks/test');await wait('return document.querySelector("img").naturalWidth>0');
+  await run("document.querySelector('img').dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));document.querySelector('[data-bl-owned=image-button]').shadowRoot.querySelector('#full').click()");
+  await wait("return document.querySelector('[data-bl-owned=image-overlay]')?.shadowRoot.querySelectorAll('.bubble').length===2",15000);assert.equal(imageRequests,2);
+  await run("document.querySelector('[data-bl-owned=image-button]').shadowRoot.querySelector('#snip').click()");
+  const pb=await run("const r=document.querySelector('img').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}");
+  await command('POST',`/session/${session}/actions`,{actions:[{type:'pointer',id:'pixiv-snip',parameters:{pointerType:'mouse'},actions:[{type:'pointerMove',duration:0,origin:'viewport',x:Math.round(pb.x+pb.width*.6),y:Math.round(pb.y+pb.height*.15)},{type:'pointerDown',button:0},{type:'pointerMove',duration:250,origin:'viewport',x:Math.round(pb.x+pb.width*.85),y:Math.round(pb.y+pb.height*.35)},{type:'pointerUp',button:0}]}]});
+  await wait("return [...document.querySelector('[data-bl-owned=image-overlay]').shadowRoot.querySelectorAll('.bubble')].some(n=>n.textContent==='Firefox 局部译文')");assert.equal(snippetRequests,2);
+  assert.deepEqual(pixiv.requests.map(r=>r.status),[200,200,200]);
+  for(const req of pixiv.requests.slice(1)){assert.equal(req.referer,'https://www.pixiv.net/');assert.equal(req.cookie,undefined);assert.equal(req.authorization,undefined);}
+  assert.ok(await run("return !!document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('p').textContent"));
+  await wait("return getComputedStyle(document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('p')).display==='none'",4000);
+  await writeFile('evidence/pixiv-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  console.log('PASS Firefox Pixiv HTTPS: full and snip downloads, scoped Referer without cookies or API key, 3-second status dismissal.');
   console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, CORS image, bubbles, toggle, real pointer snip drag and precise crop overlay; ${textRequests} text + ${imageRequests} full + ${snippetRequests} snip mock requests.`);
-}catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await new Promise(r=>server.close(r));}
+}catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads,pixiv:pixiv.requests});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await pixiv.close();await new Promise(r=>server.close(r));}
