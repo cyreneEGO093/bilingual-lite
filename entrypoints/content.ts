@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { TextTranslator } from '../lib/text-dom';
+import { installImageUI } from '../lib/image-dom';
 import '../lib/content.css';
 export default defineContentScript({
   matches: ['http://*/*','https://*/*'], runAt:'document_idle',
@@ -15,8 +16,9 @@ export default defineContentScript({
       if (!result.ok) throw new Error(result.error); return result.data;
     },message=>{status.textContent=message; button.textContent=translator.enabled?'译 · 关闭双语':'译 · 开启双语';});
     button.addEventListener('click',()=>translator.toggle());
-    const listener=(message: {type:string})=>{if(message.type==='toggle') translator.toggle(); if(message.type==='settingsChanged') {translator.stop(); status.textContent='设置已更新，请重新开启翻译。'; button.textContent='译 · 开启双语';}};
+    const images=installImageUI(message=>browser.runtime.sendMessage(message),message=>{status.textContent=message;});
+    const listener=(message: {type:string;url?:string})=>{if(message.type==='toggle') translator.toggle();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged') {translator.stop();images.reset(); status.textContent='设置已更新，请重新开启翻译。'; button.textContent='译 · 开启双语';}};
     browser.runtime.onMessage.addListener(listener);
-    ctx.onInvalidated(()=>{translator.stop();host.remove();browser.runtime.onMessage.removeListener(listener);});
+    ctx.onInvalidated(()=>{translator.stop();images.destroy();host.remove();browser.runtime.onMessage.removeListener(listener);});
   }
 });

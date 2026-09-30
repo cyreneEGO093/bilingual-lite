@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 
 const requests=[];
+const imageRequests=[];let imageDownloads=0;
+const bubbles=[{original:"HELLO, FRIEND! LET'S READ TOGETHER.",translated:'你好，朋友！一起阅读吧。',bbox:[100,90,320,430]},{original:'A NEW WORLD IS WAITING FOR US.',translated:'一个新世界正在等待我们。',bbox:[560,560,780,920]}];
 const translations={
   'A quieter way to read':'更安静的阅读方式',
   'The morning sun lights up the small garden.':'清晨的阳光照亮了小花园。',
@@ -16,9 +18,13 @@ const translations={
 };
 const server=createServer(async(req,res)=>{
   try {
+    if(req.url==='/manga.png'){imageDownloads++;res.setHeader('Content-Type','image/png');res.end(await readFile('tests/fixtures/manga.png'));return;}
+    if(req.url==='/manga'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<html><head><title>Manga test</title></head><body style="margin:50px;background:#f4f6f0"><h1>漫画翻译 · 本地 Mock 验证</h1><div id="panel" style="width:800px"><img alt="Test manga" style="display:block;width:100%;height:auto" src="http://localhost:${server.address().port}/manga.png"></div></body></html>`);return;}
     if(req.url==='/v1/models') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:[{id:'mock-vision',architecture:{input_modalities:['text','image']},context_length:1000000,pricing:{prompt:'0'}}]}));return;}
     if(req.url==='/v1/chat/completions') {
-      let raw=''; for await(const part of req) raw+=part; const body=JSON.parse(raw);requests.push(body);
+      let raw=''; for await(const part of req) raw+=part; const body=JSON.parse(raw);
+      if(Array.isArray(body.messages[1].content)){imageRequests.push(body);res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(bubbles)}}]}));return;}
+      requests.push(body);
       assert.equal(req.headers.authorization,'Bearer mock-key');
       const items=JSON.parse(body.messages[1].content);
       res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(items.map(i=>({id:i.id,translated:translations[i.text]??'动态译文：'+i.text})))}}]}));return;
@@ -57,5 +63,18 @@ try {
   await page.getByRole('button',{name:'译 · 开启双语',exact:true}).click();
   await page.locator('#dynamic + .bl-translation').waitFor();
   assert.equal(requests.length,3,'restart reuses background cache');
+  await page.goto(`${base}/manga`);await page.locator('img').evaluate(img=>img.decode());
+  await page.locator('img').hover();await page.getByRole('button',{name:'翻译图片',exact:true}).click();
+  await page.locator('.bubble').first().waitFor();assert.equal(await page.locator('.bubble').count(),2);
+  assert.equal(imageRequests.length,1);assert.equal(imageDownloads,2,'one page image load and one background cross-origin download');
+  const imageData=imageRequests[0].messages[1].content[1].image_url.url;
+  const dimensions=await page.evaluate(async data=>{const img=new Image();img.src=data;await img.decode();return[img.naturalWidth,img.naturalHeight];},imageData);
+  assert.deepEqual(dimensions,[1280,800]);
+  const checkAlignment=async()=>{const img=await page.locator('img').boundingBox();const box=await page.locator('.bubble').first().boundingBox();assert.ok(Math.abs(box.x-img.x-img.width*.09)<2);assert.ok(Math.abs(box.y-img.y-img.height*.1)<2);};
+  await checkAlignment();await page.screenshot({path:'evidence/manga-overlay.png'});
+  await page.locator('#panel').evaluate(el=>el.style.width='600px');await page.waitForTimeout(100);await checkAlignment();
+  await page.locator('img').hover();await page.getByRole('button',{name:'切换图片译文'}).click();assert.equal(await page.locator('.bubble').first().isVisible(),false);
+  await page.getByRole('button',{name:'切换图片译文'}).click();assert.equal(imageRequests.length,1);
+  console.log('PASS image: cross-origin background fallback, 1600x1000 → 1280x800, 2 positioned bubbles, resize alignment, cached hide/show; 1 mock vision call.');
   console.log('PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache; 3 mock calls; paid cost $0.');
 } finally { await context?.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true}); }
