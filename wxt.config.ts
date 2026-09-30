@@ -1,6 +1,8 @@
 import { defineConfig } from 'wxt';
 export default defineConfig({
   manifestVersion: 3,
+  outDir: 'dist',
+  zip: { zipSources: false },
   manifest: {
     name: '双语轻译 · Bilingual Lite',
     description: '按需翻译可见段落与漫画气泡，自带 API Key。',

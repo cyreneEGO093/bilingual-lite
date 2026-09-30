@@ -10,7 +10,7 @@ export function validateTextItems(value: unknown): TextItem[] {
     if (!item || typeof item.id !== 'string' || item.id.length > 80 || ids.has(item.id) || typeof item.text !== 'string' || !item.text.trim() || item.text.length > 1200) throw new Error('文本请求格式无效。');
     ids.add(item.id); size += item.text.length;
   }
-  if (size > 3600) throw new Error('单批文本过长。');
+  if (size > 1800) throw new Error('单批文本超过 1800 字符，请减少文本。');
   return value;
 }
 export async function translateText(s: Settings, input: unknown): Promise<TextResult[]> {

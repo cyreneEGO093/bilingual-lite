@@ -39,7 +39,7 @@ const server=createServer(async(req,res)=>{
 await mkdir('evidence',{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const base=`http://127.0.0.1:${server.address().port}`,profile=await mkdtemp(resolve(tmpdir(),'bilingual-live-'));let context;
 try{
-  const extension=resolve('.output/chrome-mv3');context=await chromium.launchPersistentContext(profile,{channel:'chromium',...(process.env.TEST_BROWSER_PATH?{executablePath:process.env.TEST_BROWSER_PATH}:{}),headless:true,viewport:{width:1100,height:1450},args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
+  const extension=resolve('dist/chrome-mv3');context=await chromium.launchPersistentContext(profile,{channel:'chromium',...(process.env.TEST_BROWSER_PATH?{executablePath:process.env.TEST_BROWSER_PATH}:{}),headless:true,viewport:{width:1100,height:1450},args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
   const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
   // Use the actual options page to save BYOK settings in the temporary profile.
   const options=await context.newPage();await options.goto(`chrome-extension://${new URL(worker.url()).host}/options.html`);

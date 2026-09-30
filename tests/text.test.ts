@@ -2,6 +2,7 @@ import { it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { candidates, chunks, TextTranslator } from '../lib/text-dom';
 import { translateText } from '../lib/text-api';
+import { hideOriginal } from '../lib/text-view';
 const settings={baseUrl:'https://openrouter.ai/api/v1',apiKey:'mock-key',targetLang:'简体中文',textModel:'test',visionModel:'test'};
 afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();document.body.innerHTML='';});
 it('batches paragraphs into the chat completions route, deduplicates and caches',async()=>{
@@ -31,10 +32,19 @@ it('renders four visible paragraphs, defers offscreen text and removes translati
   expect(document.querySelectorAll('.bl-translation')).toHaveLength(4);
   expect(document.querySelector('.below')!.nextElementSibling).toBeNull();
   expect(paragraphs[0]!.textContent).toBe('The morning sun lights up the small garden.');
+  controller.toggleMode();expect(paragraphs[0]!.style.display).toBe('none');expect((document.querySelector('.below') as HTMLElement).style.display).toBe('');
+  controller.toggleMode();expect(paragraphs[0]!.style.display).toBe('');
   intersect!([{target:paragraphs[4]!,isIntersecting:true} as unknown as IntersectionObserverEntry],{} as IntersectionObserver);
   await vi.advanceTimersByTimeAsync(300); expect(document.querySelectorAll('.bl-translation')).toHaveLength(5);
-  controller.stop(); expect(document.querySelectorAll('.bl-translation')).toHaveLength(0);
+  controller.toggleMode();controller.stop(); expect(document.querySelectorAll('.bl-translation')).toHaveLength(0);expect(paragraphs[0]!.style.display).toBe('');
   vi.restoreAllMocks();
+});
+it('restores list/table text nodes and event handlers after translated-only mode',()=>{
+  document.body.innerHTML='<ul><li>Original <a href="#">link</a></li></ul>';
+  const li=document.querySelector('li')!,link=document.querySelector('a')!,clicked=vi.fn();link.addEventListener('click',clicked);
+  const t=document.createElement('div');t.textContent='译文';li.append(t);const reset=hideOriginal(li,t);
+  expect(link.style.display).toBe('none');expect(t.style.display).toBe('');expect(li.querySelector('[data-bl-owned=source-wrapper]')).not.toBeNull();
+  reset();expect(li.firstChild!.textContent).toBe('Original ');expect(link.style.display).toBe('');link.click();expect(clicked).toHaveBeenCalledTimes(1);
 });
 it('rejects mismatched model IDs and does not inject model HTML',async()=>{
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:'[{"id":"wrong","translated":"bad"}]'}}]})}));

@@ -43,7 +43,7 @@ const base=`http://127.0.0.1:${server.address().port}`;
 const profile=await mkdtemp(resolve(tmpdir(),'bilingual-test-'));
 let context;
 try {
-  const extension=resolve('.output/chrome-mv3');
+  const extension=resolve('dist/chrome-mv3');
   context=await chromium.launchPersistentContext(profile,{channel:'chromium',...(process.env.TEST_BROWSER_PATH?{executablePath:process.env.TEST_BROWSER_PATH}:{}),headless:true,viewport:{width:1100,height:850},args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
   const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
   const optionsUrl=`chrome-extension://${new URL(worker.url()).host}/options.html`;
@@ -55,19 +55,21 @@ try {
   catch(e) { console.error('Options status:',await options.getByRole('status').textContent());throw e; }
   const page=await context.newPage(); await page.goto(base);
   assert.equal((await fetch(`${base}/manga.png`,{headers:{Referer:'https://foreign.example/'}})).status,403);
-  await page.getByRole('button',{name:'译 · 开启双语',exact:true}).click();
+  await page.getByRole('button',{name:'译 · 开启翻译',exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('.bl-translation').length===5);
   assert.equal(requests.length,1); assert.equal(JSON.parse(requests[0].messages[1].content).length,5);
   assert.equal(await page.locator('p').first().textContent(),'The morning sun lights up the small garden.');
   assert.equal(await page.locator('.below + .bl-translation').count(),0);
   await mkdir('evidence',{recursive:true}); await page.screenshot({path:'evidence/text-visible.png'});
+  await page.getByRole('button',{name:'仅看译文',exact:true}).click();assert.equal(await page.locator('p').first().isVisible(),false);assert.equal(await page.locator('.bl-translation').first().isVisible(),true);assert.equal(requests.length,1);
+  await page.screenshot({path:'evidence/text-only.png'});await page.getByRole('button',{name:'显示双语',exact:true}).click();assert.equal(await page.locator('p').first().isVisible(),true);assert.equal(requests.length,1);
   await page.locator('.below').scrollIntoViewIfNeeded(); await page.locator('.below + .bl-translation').waitFor();
   assert.equal(requests.length,2);
   await page.evaluate(()=>{const p=document.createElement('p');p.id='dynamic';p.textContent='New dynamic paragraph';document.body.append(p);});
   await page.locator('#dynamic').scrollIntoViewIfNeeded();await page.locator('#dynamic + .bl-translation').waitFor();
-  await page.getByRole('button',{name:'译 · 关闭双语',exact:true}).click();
+  await page.getByRole('button',{name:'译 · 关闭翻译',exact:true}).click();
   assert.equal(await page.locator('.bl-translation').count(),0);
-  await page.getByRole('button',{name:'译 · 开启双语',exact:true}).click();
+  await page.getByRole('button',{name:'译 · 开启翻译',exact:true}).click();
   await page.locator('#dynamic + .bl-translation').waitFor();
   assert.equal(requests.length,3,'restart reuses background cache');
   await page.goto(`${base}/manga`);await page.locator('img').evaluate(img=>img.decode());

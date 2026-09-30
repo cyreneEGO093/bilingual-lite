@@ -1,5 +1,6 @@
 import type { TextItem, TextResult } from './text-api';
-const SELECTOR = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,figcaption,td,th';
+import { hideOriginal } from './text-view';
+const SELECTOR = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,figcaption,td,th,article';
 const EXCLUDE = '[data-bl-owned],script,style,noscript,pre,code,textarea,input,select,button,nav,header,footer,[contenteditable]:not([contenteditable="false"]),[translate="no"],[aria-hidden="true"],[hidden]';
 export function textOf(element: HTMLElement): string { return element.textContent?.replace(/\s+/g,' ').trim() ?? ''; }
 export function candidates(root: ParentNode = document): HTMLElement[] {
@@ -23,9 +24,10 @@ export function renderTranslation(source: HTMLElement, text: string) {
   if (['LI','TD','TH'].includes(source.tagName)) source.append(node); else source.after(node);
   return node;
 }
-interface RecordState { source: string; parts: string[]; translated: (string | undefined)[]; inflight: Set<number>; node?: HTMLElement }
+interface RecordState { source: string; parts: string[]; translated: (string | undefined)[]; inflight: Set<number>; node?: HTMLElement; restore?:()=>void }
 export class TextTranslator {
   enabled = false;
+  onlyTranslated = false;
   private records = new Map<HTMLElement,RecordState>();
   private visible = new Set<HTMLElement>();
   private timer?: ReturnType<typeof setTimeout>;
@@ -51,15 +53,21 @@ export class TextTranslator {
   stop() {
     this.enabled=false; this.epoch++; clearTimeout(this.timer); clearTimeout(this.scanTimer);
     this.observer.disconnect(); this.mutations.disconnect(); this.visible.clear();
-    for (const state of this.records.values()) state.node?.remove(); this.records.clear();
+    for (const state of this.records.values()) {state.restore?.();state.node?.remove();} this.records.clear();this.onlyTranslated=false;
   }
   toggle() { if (this.enabled) { this.stop(); this.report('双语翻译已关闭。'); } else this.start(); }
+  toggleMode(){
+    if(!this.enabled)return;
+    this.onlyTranslated=!this.onlyTranslated;
+    for(const [el,state] of this.records){state.restore?.();state.restore=undefined;if(this.onlyTranslated&&state.node)state.restore=hideOriginal(el,state.node);}
+    this.report(this.onlyTranslated?'仅显示已完成的译文；未翻译段落继续保留原文。':'已恢复双语显示。');
+  }
   private scan() {
     if (!this.enabled) return;
     for (const [el,state] of this.records) {
       // Remove our child translation before comparing source text in list/table cells.
       const own = state.node; const text = Array.from(el.childNodes).filter(n=>n!==own).map(n=>n.textContent).join('').replace(/\s+/g,' ').trim();
-      if (!el.isConnected || text !== state.source) { own?.remove(); this.records.delete(el); this.visible.delete(el); this.observer.unobserve(el); }
+      if (!el.isConnected || text !== state.source) { state.restore?.();own?.remove(); this.records.delete(el); this.visible.delete(el); this.observer.unobserve(el); }
     }
     for (const el of candidates()) {
       if (this.records.has(el)) continue;
@@ -77,7 +85,7 @@ export class TextTranslator {
       for (let part=0;part<state.parts.length;part++) {
         const text=state.parts[part]!;
         if (state.translated[part] !== undefined || state.inflight.has(part)) continue;
-        if (work.length>=6 || size+text.length>3600) break;
+        if (work.length>=6 || size+text.length>1800) break;
         size+=text.length; work.push({el,state,part,id:String(work.length),text});
       }
     }
@@ -91,7 +99,7 @@ export class TextTranslator {
         const translated=result.find(r=>r.id===w.id)?.translated;
         if (translated===undefined) throw new Error('部分译文缺失，请重新开启翻译。');
         w.state.translated[w.part]=translated;
-        if (w.state.parts.every((_,i)=>w.state.translated[i]!==undefined)) w.state.node=renderTranslation(w.el,w.state.translated.join(' '));
+        if (w.state.parts.every((_,i)=>w.state.translated[i]!==undefined)) {w.state.node=renderTranslation(w.el,w.state.translated.join(' '));if(this.onlyTranslated)w.state.restore=hideOriginal(w.el,w.state.node);}
       }
       this.report('可见段落翻译完成。滚动后按需继续。');
     } catch (e) {

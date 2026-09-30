@@ -37,7 +37,7 @@ try{
   const uuid='59fae133-0e40-4cd1-b538-6c7a6c402b16';
   const created=await command('POST','/session',{capabilities:{alwaysMatch:{browserName:'firefox','moz:firefoxOptions':{binary:process.env.TEST_FIREFOX_PATH,args:['-headless'],prefs:{'extensions.webextensions.uuids':JSON.stringify({'bilingual-lite@example.org':uuid})}}}}});session=created.sessionId;
   await command('POST',`/session/${session}/window/rect`,{width:1100,height:1000});
-  await command('POST',`/session/${session}/moz/addon/install`,{path:resolve('.output/firefox-mv3'),temporary:true});
+  await command('POST',`/session/${session}/moz/addon/install`,{path:resolve('dist/firefox-mv3'),temporary:true});
   await command('POST',`/session/${session}/moz/context`,{context:'chrome'});
   await run("gBrowser.selectedTab=gBrowser.addTab(arguments[0],{triggeringPrincipal:Services.scriptSecurityManager.getSystemPrincipal()});",[`moz-extension://${uuid}/options.html`]);
   await command('POST',`/session/${session}/moz/context`,{context:'content'});
@@ -48,6 +48,8 @@ try{
   await go(base);await wait("return !!document.querySelector('[data-bl-owned=controls]')");
   await run("document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('button').click()");
   await wait("return document.querySelectorAll('.bl-translation').length===5");assert.equal(textRequests,1);
+  await run("document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('#text-mode').click()");assert.ok(await run("return getComputedStyle(document.querySelector('p')).display==='none'"));
+  await run("document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('#text-mode').click()");assert.ok(await run("return getComputedStyle(document.querySelector('p')).display!=='none'"));assert.equal(textRequests,1);
   await run("document.querySelector('.below').scrollIntoView()");await wait("return !!document.querySelector('.below + .bl-translation')");assert.equal(textRequests,2);
   await mkdir('evidence',{recursive:true});
   await run('window.scrollTo(0,0)');await writeFile('evidence/firefox-text.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
