@@ -3,6 +3,7 @@ import { TextTranslator } from '../lib/text-dom';
 import { installImageUI } from '../lib/image-dom';
 import type { BackgroundRequest, ApiReply } from '../lib/messages';
 import type { Bubble, Snippet } from '../lib/image-api';
+import { validTextScope, type TextScope } from '../lib/text-scope';
 import '../lib/content.css';
 export default defineContentScript({
   matches: ['http://*/*','https://*/*'], runAt:'document_idle',
@@ -24,15 +25,26 @@ export default defineContentScript({
       const result=await browser.runtime.sendMessage({type:'translateText',items});
       if (!result.ok) throw new Error(result.error); return result.data;
     },message=>{showStatus(message); button.textContent=translator.enabled?'译 · 关闭翻译':'译 · 开启翻译';mode.hidden=!translator.enabled;mode.textContent=translator.onlyTranslated?'显示双语':'仅看译文';});
-    button.addEventListener('click',()=>translator.toggle());
+    const scopeSelect=document.createElement('select');
+    scopeSelect.id='text-scope';scopeSelect.setAttribute('aria-label','网页翻译范围');
+    scopeSelect.innerHTML='<option value="viewport">滚动翻译</option><option value="page">整页翻译</option>';
+    scopeSelect.style.cssText='font:13px system-ui;padding:11px 8px;margin-right:6px;border:1px solid #cdd7cc;border-radius:18px;background:white;color:#243c32;cursor:pointer';
+    root.insertBefore(scopeSelect,button);
     mode.addEventListener('click',()=>translator.toggleMode());
     const send=async<T>(message:BackgroundRequest):Promise<T>=>{const reply:ApiReply<T>=await browser.runtime.sendMessage(message);if(!reply.ok)throw new Error(reply.error);return reply.data;};
+    const applyScope=(scope:TextScope)=>{translator.setScope(scope);scopeSelect.value=scope;};
+    scopeSelect.disabled=true;
+    const scopeReady=send<TextScope>({type:'getTextScope'}).then(applyScope).catch(e=>showStatus(e.message)).finally(()=>{scopeSelect.disabled=false;});
+    button.addEventListener('click',()=>{void scopeReady.then(()=>translator.toggle());});
+    scopeSelect.addEventListener('change',async()=>{
+      try {const scope=scopeSelect.value as TextScope;await send({type:'setTextScope',scope});applyScope(scope);}catch(e){scopeSelect.value=translator.scope;showStatus(e instanceof Error?e.message:'翻译范围保存失败。');}
+    });
     const images=installImageUI({
       fetchImage:(url,layout)=>send<string>({type:'fetchImage',url,layout}),
       full:dataUrl=>send<Bubble[]>({type:'translateImage',dataUrl}),
       snippet:dataUrl=>send<Snippet>({type:'translateSnippet',dataUrl})
     },showStatus);
-    const listener=(message: {type:string;url?:string})=>{if(message.type==='toggle') translator.toggle();if(message.type==='textMode')translator.toggleMode();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged') {translator.stop();images.reset(); showStatus('设置已更新，请重新开启翻译。'); button.textContent='译 · 开启翻译';mode.hidden=true;}};
+    const listener=(message: {type:string;url?:string;scope?:unknown})=>{if(message.type==='toggle') void scopeReady.then(()=>translator.toggle());if(message.type==='textScopeChanged'&&validTextScope(message.scope))applyScope(message.scope);if(message.type==='textMode')translator.toggleMode();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged') {translator.stop();images.reset(); showStatus('设置已更新，请重新开启翻译。'); button.textContent='译 · 开启翻译';mode.hidden=true;}};
     browser.runtime.onMessage.addListener(listener);
     ctx.onInvalidated(()=>{translator.stop();images.destroy();clearTimeout(statusTimer);host.remove();browser.runtime.onMessage.removeListener(listener);});
   }

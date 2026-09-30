@@ -82,5 +82,17 @@ try{
   await wait("return getComputedStyle(document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('p')).display==='none'",4000);
   await writeFile('evidence/pixiv-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
   console.log('PASS Firefox Pixiv HTTPS: full and snip downloads, scoped Referer without cookies or API key, 3-second status dismissal.');
+  await go(base);await wait("return document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('#text-scope')?.disabled===false");
+  await run("const s=document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('#text-scope');s.value='page';s.dispatchEvent(new Event('change'))");
+  // Reopen Options to verify the persisted preference independently of page UI.
+  await command('POST',`/session/${session}/moz/context`,{context:'chrome'});
+  await run("gBrowser.selectedBrowser.loadURI(Services.io.newURI(arguments[0]),{triggeringPrincipal:Services.scriptSecurityManager.getSystemPrincipal()})",[`moz-extension://${uuid}/options.html`]);
+  await command('POST',`/session/${session}/moz/context`,{context:'content'});
+  await wait("return document.querySelector('#text-scope')?.value==='page'");
+  await go(base);await wait("return document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('#text-scope')?.value==='page'");
+  await run("document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('button').click()");
+  await wait("return document.querySelectorAll('.bl-translation').length===6");assert.equal(await run('return scrollY'),0);
+  await writeFile('evidence/firefox-page-mode.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  console.log('PASS Firefox page mode: persisted preference, Options display, offscreen paragraph translated without scrolling.');
   console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, CORS image, bubbles, toggle, real pointer snip drag and precise crop overlay; ${textRequests} text + ${imageRequests} full + ${snippetRequests} snip mock requests.`);
 }catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads,pixiv:pixiv.requests});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await pixiv.close();await new Promise(r=>server.close(r));}

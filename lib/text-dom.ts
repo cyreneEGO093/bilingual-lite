@@ -1,5 +1,6 @@
 import type { TextItem, TextResult } from './text-api';
 import { hideOriginal } from './text-view';
+import type { TextScope } from './text-scope';
 const SELECTOR = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,figcaption,td,th,article';
 const EXCLUDE = '[data-bl-owned],script,style,noscript,pre,code,textarea,input,select,button,nav,header,footer,[contenteditable]:not([contenteditable="false"]),[translate="no"],[aria-hidden="true"],[hidden]';
 export function textOf(element: HTMLElement): string { return element.textContent?.replace(/\s+/g,' ').trim() ?? ''; }
@@ -28,6 +29,7 @@ interface RecordState { source: string; parts: string[]; translated: (string | u
 export class TextTranslator {
   enabled = false;
   onlyTranslated = false;
+  scope: TextScope = 'viewport';
   private records = new Map<HTMLElement,RecordState>();
   private visible = new Set<HTMLElement>();
   private timer?: ReturnType<typeof setTimeout>;
@@ -47,7 +49,7 @@ export class TextTranslator {
     });
   }
   start() {
-    if (this.enabled) return; this.enabled=true; this.epoch++; this.report('双语翻译已开启，只发送可见段落。');
+    if (this.enabled) return; this.enabled=true; this.epoch++; this.report(this.scope==='page'?'整页翻译已开启，将分批处理当前已加载的段落。':'滚动翻译已开启，只发送可见段落。');
     this.scan(); this.mutations.observe(document.body,{childList:true,subtree:true,characterData:true});
   }
   stop() {
@@ -56,6 +58,11 @@ export class TextTranslator {
     for (const state of this.records.values()) {state.restore?.();state.node?.remove();} this.records.clear();this.onlyTranslated=false;
   }
   toggle() { if (this.enabled) { this.stop(); this.report('双语翻译已关闭。'); } else this.start(); }
+  setScope(scope: TextScope) {
+    if (this.scope===scope) return;
+    this.scope=scope;
+    if(this.enabled){this.report(scope==='page'?'已切换整页翻译，将继续分批处理剩余段落。':'已切换滚动翻译，后续只处理可见段落。');this.schedule();}
+  }
   toggleMode(){
     if(!this.enabled)return;
     this.onlyTranslated=!this.onlyTranslated;
@@ -80,7 +87,7 @@ export class TextTranslator {
   private async flush() {
     if (!this.enabled || this.busy) return;
     const work: { el:HTMLElement; state:RecordState; part:number; id:string; text:string }[]=[]; let size=0;
-    for (const el of this.visible) {
+    for (const el of this.scope==='page'?this.records.keys():this.visible) {
       const state=this.records.get(el); if (!state || !el.isConnected || getComputedStyle(el).visibility==='hidden' || el.getClientRects().length===0) continue;
       for (let part=0;part<state.parts.length;part++) {
         const text=state.parts[part]!;
@@ -101,7 +108,10 @@ export class TextTranslator {
         w.state.translated[w.part]=translated;
         if (w.state.parts.every((_,i)=>w.state.translated[i]!==undefined)) {w.state.node=renderTranslation(w.el,w.state.translated.join(' '));if(this.onlyTranslated)w.state.restore=hideOriginal(w.el,w.state.node);}
       }
-      this.report('可见段落翻译完成。滚动后按需继续。');
+      if(this.scope==='page'){
+        const pending=[...this.records].some(([el,state])=>!state.node&&el.isConnected&&getComputedStyle(el).visibility!=='hidden'&&el.getClientRects().length>0);
+        this.report(pending?'本批段落已完成，整页翻译继续处理中。':'当前已加载页面翻译完成。');
+      }else this.report('可见段落翻译完成。滚动后按需继续。');
     } catch (e) {
       if (epoch===this.epoch) { this.stop(); this.report(e instanceof Error?e.message:'翻译失败，请重试。'); }
     } finally { this.busy=false; work.forEach(w=>w.state.inflight.delete(w.part)); this.schedule(); }

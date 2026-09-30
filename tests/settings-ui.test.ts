@@ -12,4 +12,6 @@ it('saves the actual form and populates vision model choices',async()=>{
   (document.querySelector('#models') as HTMLButtonElement).click();
   await vi.waitFor(()=>expect(document.querySelector('#image-models option')?.getAttribute('value')).toBe('cheap-vision'));
   expect(document.querySelector('#status')?.textContent).toContain('连接成功');
+  const scope=document.querySelector<HTMLSelectElement>('#text-scope')!;expect(scope.value).toBe('viewport');scope.value='page';scope.dispatchEvent(new Event('change'));
+  await vi.waitFor(()=>expect(api.set).toHaveBeenCalledWith({textScope:'page'}));
 });

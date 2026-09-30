@@ -129,7 +129,22 @@ try {
   // Installing the rule must not change arbitrary page fetches to that CDN.
   await page.goto(base);assert.equal(await page.evaluate(async url=>{try{await fetch(url);return true;}catch{return false;}},cdn),false);
   assert.equal(pixiv.requests.at(-1).status,403);assert.notEqual(pixiv.requests.at(-1).referer,'https://www.pixiv.net/');
+  // Scope choice is visible on-page, persists across reloads and updates from
+  // Options without discarding finished translations or changing the API key.
+  await page.locator('#text-scope').selectOption('page');
+  await options.reload();await options.waitForFunction(()=>document.querySelector('#text-scope').value==='page');
+  await page.reload();await page.waitForFunction(()=>document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('#text-scope').value==='page');
+  await page.getByRole('button',{name:'译 · 开启翻译',exact:true}).click();await page.locator('.below + .bl-translation').waitFor();
+  assert.equal(await page.evaluate(()=>scrollY),0,'page mode reaches offscreen paragraphs without scrolling');
+  assert.equal(await page.locator('.bl-translation').count(),6);
+  await options.locator('#text-scope').selectOption('viewport');await page.waitForFunction(()=>document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('#text-scope').value==='viewport');
+  await page.evaluate(()=>{const p=document.createElement('p');p.id='scope-dynamic';p.textContent='A new paragraph below the viewport';document.body.append(p);});
+  await page.waitForTimeout(1000);assert.equal(await page.locator('#scope-dynamic + .bl-translation').count(),0);
+  await page.locator('#text-scope').selectOption('page');await page.locator('#scope-dynamic + .bl-translation').waitFor();
+  assert.equal(await page.locator('.bl-translation').count(),7);assert.equal(await page.evaluate(()=>scrollY),0);
+  await page.screenshot({path:'evidence/text-page-mode.png'});
+  console.log('PASS translation scope: whole loaded page without scrolling, bounded batches, mode switch reuses results, offscreen dynamic content, preference persistence and Options sync.');
   console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');
   console.log(`PASS image: CORS/hotlink fallback and 403, 1280x800 full image, 400x200 crop, reverse drag, Escape cancellation, exact snip placement, resize, hide/show, cached full; ${imageRequests.length} full + ${snippetRequests.length} snippet mock calls.`);
-  console.log('PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; 3 mock calls; paid cost $0.');
+  console.log(`PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; ${requests.length} text mock calls; paid cost $0.`);
 } finally { await context?.close();await pixiv.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true}); }

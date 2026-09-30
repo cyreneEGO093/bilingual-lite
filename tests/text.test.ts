@@ -4,7 +4,7 @@ import { candidates, chunks, TextTranslator } from '../lib/text-dom';
 import { translateText } from '../lib/text-api';
 import { hideOriginal } from '../lib/text-view';
 const settings={baseUrl:'https://openrouter.ai/api/v1',apiKey:'mock-key',targetLang:'简体中文',textModel:'test',visionModel:'test'};
-afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();document.body.innerHTML='';});
+afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.restoreAllMocks();document.body.innerHTML='';});
 it('batches paragraphs into the chat completions route, deduplicates and caches',async()=>{
   const fetch=vi.fn().mockImplementation(async (_url,init)=>{
     const body=JSON.parse(init.body); const input=JSON.parse(body.messages[1].content);
@@ -45,6 +45,31 @@ it('restores list/table text nodes and event handlers after translated-only mode
   const t=document.createElement('div');t.textContent='译文';li.append(t);const reset=hideOriginal(li,t);
   expect(link.style.display).toBe('none');expect(t.style.display).toBe('');expect(li.querySelector('[data-bl-owned=source-wrapper]')).not.toBeNull();
   reset();expect(li.firstChild!.textContent).toBe('Original ');expect(link.style.display).toBe('');link.click();expect(clicked).toHaveBeenCalledTimes(1);
+});
+it('translates all loaded paragraphs without intersection events, in bounded sequential batches',async()=>{
+  vi.useFakeTimers();
+  document.body.innerHTML=Array.from({length:13},(_,i)=>`<p>Paragraph number ${i}.</p>`).join('')+'<p hidden>Do not send hidden text</p><p style="display:none">CSS hidden</p><pre><p>Do not send code</p></pre>';
+  vi.stubGlobal('IntersectionObserver',class{observe(){}unobserve(){}disconnect(){}});
+  vi.spyOn(HTMLElement.prototype,'getClientRects').mockImplementation(function(this:HTMLElement){return(this.style.display==='none'?[]:[{}]) as unknown as DOMRectList;});
+  const send=vi.fn(async(items)=>items.map((i:any)=>({id:i.id,translated:'译文：'+i.text}))),report=vi.fn();
+  const controller=new TextTranslator(send,report);controller.setScope('page');controller.start();
+  await vi.advanceTimersByTimeAsync(1200);
+  expect(send.mock.calls.map(c=>c[0].length)).toEqual([6,6,1]);expect(document.querySelectorAll('.bl-translation')).toHaveLength(13);
+  expect(report).toHaveBeenCalledWith('当前已加载页面翻译完成。');controller.stop();
+});
+it('changes scope without retranslating completed paragraphs and handles newly loaded content',async()=>{
+  vi.useFakeTimers();document.body.innerHTML='<p>First paragraph</p><p>Below the viewport</p>';
+  let intersect:IntersectionObserverCallback;
+  vi.stubGlobal('IntersectionObserver',class{constructor(cb:IntersectionObserverCallback){intersect=cb}observe(){}unobserve(){}disconnect(){}});
+  vi.spyOn(HTMLElement.prototype,'getClientRects').mockReturnValue([{}] as unknown as DOMRectList);
+  const send=vi.fn(async(items)=>items.map((i:any)=>({id:i.id,translated:'译文：'+i.text})));
+  const controller=new TextTranslator(send,()=>{});controller.start();
+  intersect!([{target:document.querySelector('p'),isIntersecting:true}] as unknown as IntersectionObserverEntry[],{} as IntersectionObserver);
+  await vi.advanceTimersByTimeAsync(300);expect(document.querySelectorAll('.bl-translation')).toHaveLength(1);
+  controller.setScope('page');await vi.advanceTimersByTimeAsync(300);expect(document.querySelectorAll('.bl-translation')).toHaveLength(2);expect(send.mock.calls[1]![0]).toEqual([{id:'0',text:'Below the viewport'}]);
+  controller.setScope('viewport');const p=document.createElement('p');p.textContent='New offscreen paragraph';document.body.append(p);
+  await vi.advanceTimersByTimeAsync(900);expect(send).toHaveBeenCalledTimes(2);
+  controller.setScope('page');await vi.advanceTimersByTimeAsync(300);expect(send).toHaveBeenCalledTimes(3);expect(document.querySelectorAll('.bl-translation')).toHaveLength(3);controller.stop();
 });
 it('rejects mismatched model IDs and does not inject model HTML',async()=>{
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:'[{"id":"wrong","translated":"bad"}]'}}]})}));

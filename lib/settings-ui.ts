@@ -1,20 +1,28 @@
 import { browser } from 'wxt/browser';
 import { getSettings, saveSettings, type Settings } from './settings';
+import { getTextScope, saveTextScope } from './text-scope';
 import './ui.css';
 export async function mountSettings(popup = false) {
   const app = document.querySelector<HTMLElement>('#app')!;
   app.innerHTML = `<header><span class="mark">译</span><div><h1>双语轻译</h1><p>原文在上，理解在旁。</p></div></header>
     ${popup ? '<button id="toggle" class="primary" type="button">切换当前网页翻译 · Alt+Shift+T</button>' : ''}
+    <label>网页翻译范围（自动保存）<select id="text-scope" disabled><option value="viewport">滚动翻译 · 只翻译可见段落</option><option value="page">整页翻译 · 分批翻译所有段落</option></select></label>
+    <p>整页模式处理当前已加载的正文，无需滚动，可能增加用量。</p>
     <form><label>API Endpoint<input name="baseUrl" type="url" required></label>
     <label>API Key<input name="apiKey" type="password" autocomplete="off" placeholder="仅保存在本机"></label>
     <label>目标语言<select name="targetLang"><option>简体中文</option><option>繁體中文</option><option>English</option><option>日本語</option><option>한국어</option><option>Français</option><option>Deutsch</option><option>Español</option></select></label>
     <label>文本模型<input name="textModel" list="text-models" required></label><datalist id="text-models"></datalist>
     <label>图片 / 漫画模型<input name="visionModel" list="image-models" required></label><datalist id="image-models"></datalist>
     <div class="actions"><button class="primary" type="submit">保存设置</button><button id="models" type="button">连接并查询模型</button></div></form>
-    <p id="status" role="status" aria-live="polite"></p><footer>只翻译可见段落；图片需手动点击。内容会发送至您设置的 API。密钥保存在本机，不同步。每次调用可能计费。</footer>`;
+    <p id="status" role="status" aria-live="polite"></p><footer>按所选范围翻译网页；图片需手动点击。内容会发送至您设置的 API。密钥保存在本机，不同步。每次调用可能计费。</footer>`;
   const form = app.querySelector('form')!;
   const status = app.querySelector<HTMLElement>('#status')!;
   const report = (e: unknown) => { status.textContent = e instanceof Error ? e.message : String(e); };
+  const scopeSelect=app.querySelector<HTMLSelectElement>('#text-scope')!;
+  try {scopeSelect.value=await getTextScope();} catch(e){report(e);} finally {scopeSelect.disabled=false;}
+  scopeSelect.addEventListener('change',async()=>{
+    try {await saveTextScope(scopeSelect.value);report('翻译范围已保存，已开启的网页立即生效。');}catch(e){report(e);}
+  });
   form.inert = true;
   try {
     const settings = await getSettings();

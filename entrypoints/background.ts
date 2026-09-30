@@ -5,6 +5,7 @@ import { translateText } from '../lib/text-api';
 import { translateImage, translateSnippet } from '../lib/image-api';
 import { prepareRemoteImage } from '../lib/image-download';
 import { ensureImageAccess } from '../lib/image-access';
+import { getTextScope, saveTextScope } from '../lib/text-scope';
 export default defineBackground(() => {
   // Chromium can prevent content scripts from reading local storage directly.
   browser.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
@@ -16,13 +17,19 @@ export default defineBackground(() => {
     if(tab?.id) await browser.tabs.sendMessage(tab.id,{type:'toggle'}).catch(()=>{});
   });
   browser.storage.onChanged.addListener(async (changes,area)=>{
-    if(area!=='local' || !changes.settings) return;
-    for(const tab of await browser.tabs.query({})) if(tab.id) void browser.tabs.sendMessage(tab.id,{type:'settingsChanged'}).catch(()=>{});
+    if(area!=='local' || (!changes.settings&&!changes.textScope)) return;
+    const scope=changes.textScope?await getTextScope():undefined;
+    for(const tab of await browser.tabs.query({})) if(tab.id) {
+      if(changes.settings) void browser.tabs.sendMessage(tab.id,{type:'settingsChanged'}).catch(()=>{});
+      if(scope) void browser.tabs.sendMessage(tab.id,{type:'textScopeChanged',scope}).catch(()=>{});
+    }
   });
   browser.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== browser.runtime.id) return;
     (async () => {
       if (message?.type === 'models' && sender.url?.startsWith(browser.runtime.getURL(''))) return listModels(await getSettings());
+      if (message?.type === 'getTextScope' && sender.tab) return getTextScope();
+      if (message?.type === 'setTextScope' && sender.tab) return saveTextScope(message.scope);
       if (message?.type === 'translateText' && sender.tab) return translateText(await getSettings(),message.items);
       if (message?.type === 'fetchImage' && sender.tab) {
         await ensureImageAccess(message.url);
