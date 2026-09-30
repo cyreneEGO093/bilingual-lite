@@ -7,6 +7,8 @@ import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 const paths=process.argv.slice(2),key=process.env.OPENROUTER_API_KEY;
+const crop=process.env.LIVE_SNIP?.split(',').map(Number);
+if(crop&&(!(crop.length===4)||crop.some(n=>!Number.isFinite(n)||n<0||n>1)||crop[2]<=0||crop[3]<=0||crop[0]+crop[2]>1||crop[1]+crop[3]>1))throw new Error('Invalid LIVE_SNIP left,top,width,height.');
 const model=process.env.LIVE_MODEL??'inclusionai/ling-3.0-flash-vl';
 if(!['inclusionai/ling-3.0-flash-vl','deepseek/deepseek-v4.1-flash'].includes(model))throw new Error('Model is outside the live test cost allowlist.');
 const label=process.env.LIVE_LABEL??'';
@@ -21,11 +23,11 @@ const server=createServer(async(req,res)=>{
     if(url.pathname==='/v1/chat/completions'){
       if(blocked||++attempts>2){res.statusCode=429;res.end('{}');return;}
       let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);
-      assert.equal(body.model,model);assert.ok(body.max_tokens<=3500);assert.equal(body.messages[1].content[1].type,'image_url');
+      assert.equal(body.model,model);assert.equal(body.max_tokens,1500);assert.equal(body.temperature,.1);assert.deepEqual(body.reasoning,{enabled:false});assert.equal(body.messages[1].content[1].type,'image_url');
       const start=Date.now();
       const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});
       const data=await response.json();
-      const record={sample:attempts,httpStatus:response.status,model:data.model??body.model,seconds:Math.round((Date.now()-start)/100)/10,usage:data.usage??null,content:data.choices?.[0]?.message?.content??null,...(!response.ok?{error:String(data.error?.message??'API error').replaceAll(key,'[redacted]')}:{})};
+      const record={sample:attempts,mode:crop?'snippet':'full',httpStatus:response.status,model:data.model??body.model,seconds:Math.round((Date.now()-start)/100)/10,usage:data.usage??null,content:data.choices?.[0]?.message?.content??null,...(!response.ok?{error:String(data.error?.message??'API error').replaceAll(key,'[redacted]')}:{})};
       records.push(record);await writeFile(`evidence/live-${suffix}-results.json`,JSON.stringify({checkedAt:new Date().toISOString(),maxRequests:2,records},null,2));
       if(!response.ok){blocked=true;console.log(`Live API HTTP ${response.status}; stopping paid requests.`);}
       res.statusCode=response.status;res.setHeader('Content-Type','application/json');res.end(JSON.stringify(response.ok?data:{error:{code:response.status}}));return;
@@ -44,7 +46,9 @@ try{
   await options.locator('[name=baseUrl]').fill(`${base}/v1`);await options.locator('[name=apiKey]').fill(key);await options.locator('[name=visionModel]').fill(model);await options.getByRole('button',{name:'保存设置',exact:true}).click();await options.getByRole('status').filter({hasText:'已保存'}).waitFor();
   const page=await context.newPage();
   for(let n=0;n<paths.length&&!blocked;n++){
-    await page.goto(`${base}/?n=${n}`);await page.locator('img').evaluate(img=>img.decode());await page.locator('img').hover({position:{x:30,y:30}});await page.getByRole('button',{name:'翻译图片',exact:true}).click();
+    await page.goto(`${base}/?n=${n}`);await page.locator('img').evaluate(img=>img.decode());await page.locator('img').hover({position:{x:30,y:30}});
+    if(crop){await page.getByRole('button',{name:'手动框选',exact:true}).click();const r=await page.locator('img').boundingBox();await page.mouse.move(r.x+r.width*crop[0],r.y+r.height*crop[1]);await page.mouse.down();await page.mouse.move(r.x+r.width*(crop[0]+crop[2]),r.y+r.height*(crop[1]+crop[3]),{steps:8});await page.mouse.up();}
+    else await page.getByRole('button',{name:'全文翻译',exact:true}).click();
     await page.waitForFunction(()=>{const host=document.querySelector('[data-bl-owned="controls"]');const text=host?.shadowRoot?.querySelector('p')?.textContent??'';return !text.includes('正在')&&text.length>0;},{},{timeout:75000});
     const status=await page.locator('[data-bl-owned="controls"]').locator('p').textContent();
     console.log(`Sample ${n+1}: ${status}`);await page.screenshot({path:`evidence/live-${suffix}-sample-${n+1}.png`,fullPage:true});

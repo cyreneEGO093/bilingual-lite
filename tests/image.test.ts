@@ -1,5 +1,5 @@
 import { it, expect, vi, afterEach } from 'vitest';
-import { validateBubbles, translateImage, fetchImage } from '../lib/image-api';
+import { validateBubbles, translateImage, translateSnippet, fetchImage } from '../lib/image-api';
 import { fittedRect, ImageOverlay } from '../lib/image-dom';
 import { drawGeometry, validateRegion, IMAGE_QUALITY } from '../lib/image-geometry';
 const settings={baseUrl:'https://openrouter.ai/api/v1',apiKey:'mock-key',targetLang:'简体中文',textModel:'test',visionModel:'vision'};
@@ -13,6 +13,18 @@ it('uses image_url parts and validates the vision JSON',async()=>{
 it.each([[320,90,100,430],[-1,0,400,400],[0,0,1001,400],[0,0,NaN,400],[0,10,20,10]])('rejects invalid bbox %j',(...bbox)=>{expect(()=>validateBubbles([{...bubble,bbox}])).toThrow();});
 it('allows empty image results and rejects oversized image input',async()=>{
   expect(validateBubbles([])).toEqual([]);await expect(translateImage(settings,'https://example.com/image.png')).rejects.toThrow('无效');
+});
+it('requests right-to-left full-image coordinates but no coordinates in snippet mode',async()=>{
+  const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({original:'こんにちは',translated:'你好'})}}]})});vi.stubGlobal('fetch',fetch);
+  expect(await translateSnippet(settings,'data:image/jpeg;base64,YQ==')).toEqual({original:'こんにちは',translated:'你好'});
+  const body=JSON.parse(fetch.mock.calls[0]![1].body);expect(body.messages[0].content).toContain('No coordinates');expect(body.max_tokens).toBe(1500);
+  fetch.mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:'[]'}}]})});await translateImage(settings,'data:image/jpeg;base64,YQ==');expect(JSON.parse(fetch.mock.calls[1]![1].body).messages[0].content).toContain('RIGHT TO LEFT');
+});
+it('uses verified structured output for default vision models and validates wrapped bubbles',async()=>{
+  const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({bubbles:[bubble]})}}]})});vi.stubGlobal('fetch',fetch);
+  expect(await translateImage({...settings,visionModel:'inclusionai/ling-3.0-flash-vl'},'data:image/jpeg;base64,YQ==')).toEqual([bubble]);
+  const body=JSON.parse(fetch.mock.calls[0]![1].body);expect(body.response_format).toMatchObject({type:'json_schema',json_schema:{strict:true}});expect(body.provider).toEqual({require_parameters:true});
+  expect(body.response_format.json_schema.schema.properties.bubbles.items.required).toContain('bbox');
 });
 it('cross-origin downloader omits cookies and does not attach API credentials',async()=>{
   const bytes=new TextEncoder().encode('mock');const fetch=vi.fn().mockResolvedValue(new Response(bytes,{headers:{'Content-Type':'image/png'}}));vi.stubGlobal('fetch',fetch);

@@ -81,11 +81,16 @@ export function parseJson(content: unknown): unknown {
   try{return JSON.parse(content.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''));}
   catch{throw new Error('模型未返回有效 JSON，请缩小框选范围或更换模型。');}
 }
-export async function complete(s: Settings, model: string, messages: ChatMessage[]): Promise<unknown> {
+export interface OutputSchema { name:string; schema:Record<string,unknown> }
+export async function complete(s: Settings, model: string, messages: ChatMessage[], shape?:OutputSchema): Promise<unknown> {
+  // These two catalog entries were verified to expose structured_outputs.
+  // Custom models retain prompt + runtime validation rather than guessed capabilities.
+  const structured=shape&&['deepseek/deepseek-v4.1-flash','inclusionai/ling-3.0-flash-vl'].includes(model)
+    ? {response_format:{type:'json_schema',json_schema:{...shape,strict:true}},provider:{require_parameters:true}} : {};
   // OpenRouter's documented normalized switch. This is a raw HTTP body, not SDK extra_body.
   const data=await request(s,'/chat/completions',{
     model,messages,temperature:TEMPERATURE,max_tokens:MAX_OUTPUT_TOKENS,stream:false,
-    reasoning:{enabled:false}
+    reasoning:{enabled:false},...structured
   }) as CompletionResponse;
   const choice=data.choices?.[0];
   if(choice?.finish_reason==='content_filter'||choice?.message?.refusal)throw new Error('模型服务拒绝处理此内容。本次不会自动重试。');

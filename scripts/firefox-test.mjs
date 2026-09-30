@@ -8,14 +8,14 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 async function freePort(){const socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const port=socket.address().port;await new Promise(r=>socket.close(r));return port;}
 if(!process.env.TEST_FIREFOX_PATH||!process.env.GECKODRIVER_PATH)throw new Error('Set TEST_FIREFOX_PATH and GECKODRIVER_PATH.');
-let textRequests=0,imageRequests=0,downloads=0;
+let textRequests=0,imageRequests=0,snippetRequests=0,downloads=0;
 const server=createServer(async(req,res)=>{
   try{
     if(req.url==='/v1/models'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:[{id:'mock-vision',architecture:{input_modalities:['image','text']}}]}));return;}
     if(req.url==='/v1/chat/completions'){
       let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);assert.equal(req.headers.authorization,'Bearer mock-key');
-      const isImage=Array.isArray(body.messages[1].content);isImage?imageRequests++:textRequests++;
-      const result=isImage?[{original:'Hello friend',translated:'你好，朋友！一起阅读吧。',bbox:[100,90,320,430]},{original:'A new world',translated:'新世界正在等待我们。',bbox:[560,560,780,920]}]:JSON.parse(body.messages[1].content).map(i=>({id:i.id,translated:'中文译文：'+i.text}));
+      const isImage=Array.isArray(body.messages[1].content),isSnippet=isImage&&body.messages[1].content[0].text.includes('框内');isSnippet?snippetRequests++:isImage?imageRequests++:textRequests++;
+      const result=isSnippet?{original:'Test crop',translated:'Firefox 局部译文'}:isImage?[{original:'Hello friend',translated:'你好，朋友！一起阅读吧。',bbox:[100,90,320,430]},{original:'A new world',translated:'新世界正在等待我们。',bbox:[560,560,780,920]}]:JSON.parse(body.messages[1].content).map(i=>({id:i.id,translated:'中文译文：'+i.text}));
       res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(result)}}]}));return;
     }
     if(req.url==='/manga.png'){downloads++;res.setHeader('Content-Type','image/png');res.end(await readFile('tests/fixtures/manga.png'));return;}
@@ -57,6 +57,12 @@ try{
   assert.equal(imageRequests,1);assert.equal(downloads,2);
   const aligned=await run("const i=document.querySelector('img').getBoundingClientRect(),b=document.querySelector('[data-bl-owned=image-overlay]').shadowRoot.querySelector('.bubble').getBoundingClientRect();return Math.abs(b.x-i.x-i.width*.09)<2 && Math.abs(b.y-i.y-i.height*.1)<2");assert.ok(aligned);
   await writeFile('evidence/firefox-manga.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
-  await run("document.querySelector('[data-bl-owned=image-button]').shadowRoot.querySelector('button').click()");assert.ok(await run("return document.querySelector('[data-bl-owned=image-overlay]').hidden"));
-  console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, cross-origin image, positioned bubbles, toggle; ${textRequests} text + ${imageRequests} image mock requests.`);
+  await run("document.querySelector('[data-bl-owned=image-button]').shadowRoot.querySelector('#clear').click()");assert.ok(await run("return document.querySelector('[data-bl-owned=image-overlay]').hidden"));
+  await run("document.querySelector('[data-bl-owned=image-button]').shadowRoot.querySelector('#snip').click()");
+  const bounds=await run("const r=document.querySelector('img').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}");
+  await command('POST',`/session/${session}/actions`,{actions:[{type:'pointer',id:'snip-mouse',parameters:{pointerType:'mouse'},actions:[{type:'pointerMove',duration:0,origin:'viewport',x:Math.round(bounds.x+bounds.width*.6),y:Math.round(bounds.y+bounds.height*.15)},{type:'pointerDown',button:0},{type:'pointerMove',duration:250,origin:'viewport',x:Math.round(bounds.x+bounds.width*.85),y:Math.round(bounds.y+bounds.height*.35)},{type:'pointerUp',button:0}]}]});
+  await wait("return [...document.querySelector('[data-bl-owned=image-overlay]').shadowRoot.querySelectorAll('.bubble')].some(n=>n.textContent==='Firefox 局部译文')");assert.equal(snippetRequests,1);
+  const cropAligned=await run("const i=document.querySelector('img').getBoundingClientRect(),b=[...document.querySelector('[data-bl-owned=image-overlay]').shadowRoot.querySelectorAll('.bubble')].find(n=>n.textContent==='Firefox 局部译文').getBoundingClientRect();return Math.abs(b.x-i.x-i.width*.6)<2 && Math.abs(b.y-i.y-i.height*.15)<2 && Math.abs(b.width-i.width*.25)<2");assert.ok(cropAligned);
+  await writeFile('evidence/firefox-snip.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, CORS image, bubbles, toggle, real pointer snip drag and precise crop overlay; ${textRequests} text + ${imageRequests} full + ${snippetRequests} snip mock requests.`);
 }catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await new Promise(r=>server.close(r));}

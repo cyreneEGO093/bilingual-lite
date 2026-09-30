@@ -1,6 +1,8 @@
 import { browser } from 'wxt/browser';
 import { TextTranslator } from '../lib/text-dom';
 import { installImageUI } from '../lib/image-dom';
+import type { BackgroundRequest, ApiReply } from '../lib/messages';
+import type { Bubble, Snippet } from '../lib/image-api';
 import '../lib/content.css';
 export default defineContentScript({
   matches: ['http://*/*','https://*/*'], runAt:'document_idle',
@@ -16,7 +18,12 @@ export default defineContentScript({
       if (!result.ok) throw new Error(result.error); return result.data;
     },message=>{status.textContent=message; button.textContent=translator.enabled?'译 · 关闭双语':'译 · 开启双语';});
     button.addEventListener('click',()=>translator.toggle());
-    const images=installImageUI(message=>browser.runtime.sendMessage(message),message=>{status.textContent=message;});
+    const send=async<T>(message:BackgroundRequest):Promise<T>=>{const reply:ApiReply<T>=await browser.runtime.sendMessage(message);if(!reply.ok)throw new Error(reply.error);return reply.data;};
+    const images=installImageUI({
+      fetchImage:(url,layout)=>send<string>({type:'fetchImage',url,layout}),
+      full:dataUrl=>send<Bubble[]>({type:'translateImage',dataUrl}),
+      snippet:dataUrl=>send<Snippet>({type:'translateSnippet',dataUrl})
+    },message=>{status.textContent=message;});
     const listener=(message: {type:string;url?:string})=>{if(message.type==='toggle') translator.toggle();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged') {translator.stop();images.reset(); status.textContent='设置已更新，请重新开启翻译。'; button.textContent='译 · 开启双语';}};
     browser.runtime.onMessage.addListener(listener);
     ctx.onInvalidated(()=>{translator.stop();images.destroy();host.remove();browser.runtime.onMessage.removeListener(listener);});
