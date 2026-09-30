@@ -9,7 +9,7 @@ export default defineConfig({
   vite: ({ browser }) => ({ build:{modulePreload:{polyfill:false}},plugins:[runtimeAudit(browser)] }),
   manifest: {
     name: '双语轻译 · Bilingual Lite',
-    description: '自带 API Key，按需翻译网页段落和漫画气泡，支持整页、滚动和框选。内容发送至用户配置的 AI 服务。',
+    description: '用户自备 API Key，按需翻译网页段落和漫画气泡，支持整页、滚动和框选。内容发送至用户配置的 AI 服务。',
     icons: {16:'icons/16.png',32:'icons/32.png',48:'icons/48.png',96:'icons/96.png',128:'icons/128.png'},
     action: {default_icon:{16:'icons/16.png',32:'icons/32.png'}},
     incognito: 'not_allowed',

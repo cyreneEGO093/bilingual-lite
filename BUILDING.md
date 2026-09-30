@@ -1,6 +1,6 @@
 # Reproducible build / AMO source instructions
 
-Release: 0.3.0. License: GPL-3.0-only, with unmodified MIT runtime components.
+Release: 0.3.1. License: GPL-3.0-only, with unmodified MIT runtime components.
 
 ## Environment and commands
 
@@ -18,7 +18,7 @@ npm run zip
 
 `npm ci` downloads public packages from the official npm registry using `package-lock.json`. The WXT postinstall prepares local types. The optional esbuild native helper is a build tool, not extension runtime code. Do not run `npm update` or replace the lockfile when reproducing this release.
 
-Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.3.0-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
+Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.3.1-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
 
 PNG icons and legal texts are included in the source archive. `assets/icon.svg` is the original editable artwork. Regenerating PNGs is optional (`node scripts/create-icons.mjs`, with Playwright Chromium installed or `TEST_BROWSER_PATH` set), and is not part of the release build. The build records actually included npm runtime modules under `.wxt/license-audit/`; `npm run audit:licenses` regenerates their notices, module hashes and exact source snapshots. A new runtime dependency fails this audit pending license review.
 
