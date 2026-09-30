@@ -1,0 +1,46 @@
+import { browser } from 'wxt/browser';
+import { getSettings, saveSettings, type Settings } from './settings';
+import './ui.css';
+export async function mountSettings(popup = false) {
+  const app = document.querySelector<HTMLElement>('#app')!;
+  app.innerHTML = `<header><span class="mark">译</span><div><h1>双语轻译</h1><p>原文在上，理解在旁。</p></div></header>
+    ${popup ? '<button id="toggle" class="primary" type="button">切换当前网页翻译 · Alt+Shift+T</button>' : ''}
+    <form><label>API Endpoint<input name="endpoint" type="url" required></label>
+    <label>API Key<input name="apiKey" type="password" autocomplete="off" placeholder="仅保存在本机"></label>
+    <label>目标语言<select name="language"><option>简体中文</option><option>繁體中文</option><option>English</option><option>日本語</option><option>한국어</option><option>Français</option><option>Deutsch</option><option>Español</option></select></label>
+    <label>文本模型<input name="textModel" list="text-models" required></label><datalist id="text-models"></datalist>
+    <label>图片 / 漫画模型<input name="imageModel" list="image-models" required></label><datalist id="image-models"></datalist>
+    <div class="actions"><button class="primary" type="submit">保存设置</button><button id="models" type="button">连接并查询模型</button></div></form>
+    <p id="status" role="status" aria-live="polite"></p><footer>只翻译可见段落；图片需手动点击。内容会发送至您设置的 API。密钥保存在本机，不同步。每次调用可能计费。</footer>`;
+  const form = app.querySelector('form')!;
+  const status = app.querySelector<HTMLElement>('#status')!;
+  const report = (e: unknown) => { status.textContent = e instanceof Error ? e.message : String(e); };
+  try {
+    const settings = await getSettings();
+    for (const [key, value] of Object.entries(settings)) (form.elements.namedItem(key) as HTMLInputElement).value = value;
+  } catch (e) { report(e); }
+  const save = async () => saveSettings(Object.fromEntries(new FormData(form)) as unknown as Settings);
+  form.addEventListener('submit', async e => { e.preventDefault(); try { await save(); report('已保存到本机。'); } catch (e) { report(e); } });
+  app.querySelector('#models')!.addEventListener('click', async () => {
+    const button = app.querySelector<HTMLButtonElement>('#models')!; button.disabled = true;
+    try {
+      await save(); report('正在查询模型…');
+      const result = await browser.runtime.sendMessage({ type: 'models' });
+      if (!result.ok) throw new Error(result.error);
+      for (const [id, visionOnly] of [['text-models', false], ['image-models', true]] as const) {
+        const list = app.querySelector(`#${id}`)!; list.replaceChildren();
+        for (const model of result.data) {
+          if (visionOnly && !model.vision) continue;
+          const option = document.createElement('option'); option.value = model.id;
+          option.label = `${model.context ?? '?'} context · $${Number(model.pricing?.prompt ?? 0) * 1e6}/M input`;
+          list.append(option);
+        }
+      }
+      report(`连接成功，获取 ${result.data.length} 个模型。查询本身无推理费用。`);
+    } catch (e) { report(e); } finally { button.disabled = false; }
+  });
+  app.querySelector('#toggle')?.addEventListener('click', async () => {
+    try { const [tab] = await browser.tabs.query({ active: true, currentWindow: true }); if (tab?.id) await browser.tabs.sendMessage(tab.id, { type: 'toggle' }); }
+    catch { report('此页面无法注入翻译，请打开普通网页并刷新后重试。'); }
+  });
+}
