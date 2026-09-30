@@ -1,7 +1,8 @@
 node_modules/
 .wxt/
 .output/
-dist/
+# Root build output only: third-party runtime snapshots may contain dist/ sources.
+/dist/
 test-results/
 playwright-report/
 .env*
