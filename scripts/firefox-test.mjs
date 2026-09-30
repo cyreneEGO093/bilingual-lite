@@ -10,6 +10,9 @@ import net from 'node:net';
 import { startPixivProxy } from './pixiv-test-proxy.mjs';
 import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-scenario.mjs';
 const recovery=recoveryMock();
+const addonManifest=JSON.parse(await readFile('dist/firefox-mv3/manifest.json','utf8'));
+const addonId=addonManifest.browser_specific_settings?.gecko?.id;
+assert.equal(typeof addonId,'string','Firefox build must declare an add-on ID');
 async function freePort(){const socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const port=socket.address().port;await new Promise(r=>socket.close(r));return port;}
 if(!process.env.TEST_FIREFOX_PATH||!process.env.GECKODRIVER_PATH)throw new Error('Set TEST_FIREFOX_PATH and GECKODRIVER_PATH.');
 let textRequests=0,imageRequests=0,snippetRequests=0,downloads=0;
@@ -44,7 +47,7 @@ const go=url=>command('POST',`/session/${session}/url`,{url});
 try{
   await new Promise((resolve,reject)=>{driver.stdout.on('data',chunk=>{if(chunk.toString().includes('Listening on'))resolve();});driver.on('error',reject);setTimeout(()=>reject(new Error('geckodriver startup timeout')),10000).unref();});
   const uuid='59fae133-0e40-4cd1-b538-6c7a6c402b16';
-  const created=await command('POST','/session',{capabilities:{alwaysMatch:{browserName:'firefox',acceptInsecureCerts:true,'moz:firefoxOptions':{binary:process.env.TEST_FIREFOX_PATH,args:['-headless'],prefs:{'extensions.webextensions.uuids':JSON.stringify({'bilingual-lite@example.org':uuid}),'network.proxy.type':1,'network.proxy.ssl':'127.0.0.1','network.proxy.ssl_port':pixiv.port,'network.proxy.no_proxies_on':'localhost,127.0.0.1'}}}}});session=created.sessionId;
+  const created=await command('POST','/session',{capabilities:{alwaysMatch:{browserName:'firefox',acceptInsecureCerts:true,'moz:firefoxOptions':{binary:process.env.TEST_FIREFOX_PATH,args:['-headless'],prefs:{'extensions.webextensions.uuids':JSON.stringify({[addonId]:uuid}),'network.proxy.type':1,'network.proxy.ssl':'127.0.0.1','network.proxy.ssl_port':pixiv.port,'network.proxy.no_proxies_on':'localhost,127.0.0.1'}}}}});session=created.sessionId;
   await command('POST',`/session/${session}/window/rect`,{width:1100,height:1000});
   await command('POST',`/session/${session}/moz/addon/install`,{path:resolve('dist/firefox-mv3'),temporary:true});
   await command('POST',`/session/${session}/moz/context`,{context:'chrome'});

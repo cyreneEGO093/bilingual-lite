@@ -27,7 +27,7 @@
 
 项目主页：https://github.com/cyreneEGO093/bilingual-lite
 
-本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.1/bilingual-lite-0.3.1-source.zip
+本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.2/bilingual-lite-0.3.2-source.zip
 
 ## Other submission fields
 
@@ -35,7 +35,7 @@
 - Platform: desktop Firefox.
 - Icon: `assets/icon-512.png` or `public/icons/128.png` (upload separately).
 - Privacy policy: copy the complete `PRIVACY.md` text into AMO's privacy-policy field.
-- Source attachment: `bilingual-lite-0.3.1-source.zip`; build/review instructions: `BUILDING.md`.
+- Source attachment: `bilingual-lite-0.3.2-source.zip`; build/review instructions: `BUILDING.md`.
 - Homepage: https://github.com/cyreneEGO093/bilingual-lite
 - Support: https://github.com/cyreneEGO093/bilingual-lite/issues (no response or maintenance commitment).
 - Payment disclosure: API service may require a paid account; the extension is free.

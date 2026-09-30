@@ -8,7 +8,7 @@
 
 轻量的网页与漫画翻译扩展，支持 **Chrome / Firefox Manifest V3**。使用自己的 API Key，自选 OpenAI 兼容服务和模型。原生 TypeScript / CSS，无 UI 框架，无需安装 Python 或本地 OCR。
 
-[下载 v0.3.1](https://github.com/cyreneEGO093/bilingual-lite/releases/tag/v0.3.1) · [详细使用指南](USAGE.md) · [隐私说明](PRIVACY.md) · [反馈问题](https://github.com/cyreneEGO093/bilingual-lite/issues)
+[下载 v0.3.2](https://github.com/cyreneEGO093/bilingual-lite/releases/tag/v0.3.2) · [详细使用指南](USAGE.md) · [隐私说明](PRIVACY.md) · [反馈问题](https://github.com/cyreneEGO093/bilingual-lite/issues)
 
 > 当前为开发者加载版本，Firefox 安装包尚未获得 Mozilla 签名，也尚未在扩展商店上架。扩展本身免费；所选 API 服务可能按用量收费。
 
@@ -36,10 +36,10 @@
 
 | 文件 | 用途 |
 |---|---|
-| `bilingual-lite-0.3.1-chrome.zip` | Chrome 安装文件；Edge 可按下述方法加载同一包 |
-| `bilingual-lite-0.3.1-firefox.zip` | Firefox 临时加载／商店提交文件，目前未签名 |
-| `bilingual-lite-0.3.1-source.zip` | 完整对应源码、锁文件、构建材料与第三方许可 |
-| `bilingual-lite-0.3.1-SHA256.txt` | 下载文件的 SHA-256 校验值 |
+| `bilingual-lite-0.3.2-chrome.zip` | Chrome 安装文件；Edge 可按下述方法加载同一包 |
+| `bilingual-lite-0.3.2-firefox.zip` | Firefox 临时加载／商店提交文件，目前未签名 |
+| `bilingual-lite-0.3.2-source.zip` | 完整对应源码、锁文件、构建材料与第三方许可 |
+| `bilingual-lite-0.3.2-SHA256.txt` | 下载文件的 SHA-256 校验值 |
 
 安装包仅含运行代码、图标以及必要的许可和隐私资源，不含交付说明、测试样图或 API Key。
 
@@ -52,6 +52,8 @@
 Chrome 已完成实际扩展测试；Edge 使用相同的 Chromium 包，本版本未单独完成 Edge 交互验收。
 
 ### Firefox 140+
+
+0.3.2 使用新的 Firefox 扩展标识，作为独立扩展安装，不能自动继承 0.3.0 / 0.3.1 旧标识下的设置。请在新扩展中重新配置；后续版本将继续沿用这个新标识。
 
 1. 下载并解压 `firefox.zip`。
 2. 打开 `about:debugging#/runtime/this-firefox`，点击“临时载入附加组件”。
@@ -116,4 +118,4 @@ v0.3.0 已完成 79 项自动测试、Chrome 153 / Firefox 155 实际扩展交�
 
 项目以 **GPL-3.0-only** 发布，完整许可见 [LICENSE](LICENSE)，版权和适用范围见 [COPYRIGHT.md](COPYRIGHT.md)。第三方运行时代码保留各自的 MIT 许可，见 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。
 
-对应版本的完整源码可从本仓库和 [Release 源码附件](https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.1/bilingual-lite-0.3.1-source.zip) 获取。再分发修改版时，请按许可证保留声明并提供相应源码。本项目不提供任何担保，不保证可靠性或后续维护。
+对应版本的完整源码可从本仓库和 [Release 源码附件](https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.2/bilingual-lite-0.3.2-source.zip) 获取。再分发修改版时，请按许可证保留声明并提供相应源码。本项目不提供任何担保，不保证可靠性或后续维护。

@@ -1,6 +1,6 @@
 # Reproducible build / AMO source instructions
 
-Release: 0.3.1. License: GPL-3.0-only, with unmodified MIT runtime components.
+Release: 0.3.2. License: GPL-3.0-only, with unmodified MIT runtime components.
 
 ## Environment and commands
 
@@ -18,7 +18,7 @@ npm run zip
 
 `npm ci` downloads public packages from the official npm registry using `package-lock.json`. The WXT postinstall prepares local types. The optional esbuild native helper is a build tool, not extension runtime code. Do not run `npm update` or replace the lockfile when reproducing this release.
 
-Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.3.1-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
+Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.3.2-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
 
 PNG icons and legal texts are included in the source archive. `assets/icon.svg` is the original editable artwork. Regenerating PNGs is optional (`node scripts/create-icons.mjs`, with Playwright Chromium installed or `TEST_BROWSER_PATH` set), and is not part of the release build. The build records actually included npm runtime modules under `.wxt/license-audit/`; `npm run audit:licenses` regenerates their notices, module hashes and exact source snapshots. A new runtime dependency fails this audit pending license review.
 
@@ -40,7 +40,7 @@ These fixtures exercise actual extension networking, rendering and settings, but
 - Pixiv request header adjustment is limited to extension-initiated HTTPS GET requests to `pximg.net`; it sends only the constant `https://www.pixiv.net/` origin as Referer and no site cookies.
 - No analytics, remote scripts, native messaging, downloaded model execution or image inpainting. Model outputs are validated and inserted as text, never executable HTML.
 - Private browsing is disabled for this release to avoid mixing in-memory translation caches across private and normal windows.
-- The extension ID `bilingual-lite@example.org` is a stable technical identifier from the development versions, not a contact email. Keep it stable for updates unless deliberately creating a distinct add-on.
+- Starting with 0.3.2, the Firefox extension ID is `{cfc2c8e0-b3a6-45b3-9496-56c70387c2bb}`. This is a new add-on identity, not an update identity for 0.3.0/0.3.1. Keep this new ID stable for all subsequent store updates; settings under the previous identity are not migrated automatically.
 - The installable ZIP contains only runtime files, icons and privacy/license resources. Submission instructions, test fixtures, audit material and third-party source snapshots are in the **separate source archive**, not the installed extension.
 
 Official source requirements: https://extensionworkshop.com/documentation/publish/source-code-submission/

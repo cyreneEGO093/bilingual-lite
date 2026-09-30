@@ -16,6 +16,6 @@ export default defineConfig({
     permissions: ['storage', 'activeTab', 'contextMenus', 'declarativeNetRequestWithHostAccess'],
     host_permissions: ['http://*/*', 'https://*/*'],
     commands: { 'toggle-translation': { suggested_key: { default: 'Alt+Shift+T' }, description: '切换双语翻译' } },
-    browser_specific_settings: { gecko: { id: 'bilingual-lite@example.org', strict_min_version: '140.0', data_collection_permissions: { required: ['websiteContent', 'authenticationInfo'] } }, gecko_android: {strict_min_version:'142.0'} }
+    browser_specific_settings: { gecko: { id: '{cfc2c8e0-b3a6-45b3-9496-56c70387c2bb}', strict_min_version: '140.0', data_collection_permissions: { required: ['websiteContent', 'authenticationInfo'] } }, gecko_android: {strict_min_version:'142.0'} }
   }
 });
