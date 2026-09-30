@@ -1,8 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { browser } from 'wxt/browser';
 export interface Settings { baseUrl: string; apiKey: string; targetLang: string; textModel: string; visionModel: string }
 export const defaults: Settings = {
   baseUrl: 'https://openrouter.ai/api/v1', apiKey: '', targetLang: '简体中文',
-  textModel: 'deepseek/deepseek-v4.1-flash', visionModel: 'inclusionai/ling-3.0-flash-vl'
+  textModel: 'deepseek/deepseek-v4.1-flash', visionModel: 'deepseek/deepseek-v4.1-flash'
 };
 export function validateSettings(value: Settings): Settings {
   const s = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : ''])) as unknown as Settings;

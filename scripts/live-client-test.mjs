@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Explicitly paid acceptance of the actual unified client. Two calls, no secret files.
 import { build } from 'esbuild';
 import { chromium } from '@playwright/test';

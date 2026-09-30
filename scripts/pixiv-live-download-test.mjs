@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Optional live CDN acceptance. Uses a synthetic Pixiv-origin test page, the
 // specified real CDN image, and a LOCAL model mock. No paid API request is made.
 import { chromium } from '@playwright/test';

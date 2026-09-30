@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Public, unbilled catalog check. Deliberately no API key input.
 const response = await fetch('https://openrouter.ai/api/v1/models', { signal: AbortSignal.timeout(30000) });
 if (!response.ok) throw new Error(`Models HTTP ${response.status}`);

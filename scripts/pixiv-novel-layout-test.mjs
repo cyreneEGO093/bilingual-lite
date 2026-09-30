@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Optional live-site layout acceptance; all translations come from a local mock.
 // No account cookie is imported, and neither source text nor images are saved.
 import { chromium } from '@playwright/test';

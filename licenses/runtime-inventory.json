@@ -1,0 +1,66 @@
+[
+  {
+    "name": "@wxt-dev/browser",
+    "version": "0.3.4",
+    "license": "MIT",
+    "file": "src/index.mjs",
+    "source": "third-party/runtime/wxt-dev-browser-0.3.4/src/index.mjs",
+    "sha256": "b284b8403cff4c8eb700d3bbd34dec4c770e0165093fb9ac32e129f0813b2144"
+  },
+  {
+    "name": "wxt",
+    "version": "0.21.4",
+    "license": "MIT",
+    "file": "dist/browser.mjs",
+    "source": "third-party/runtime/wxt-0.21.4/dist/browser.mjs",
+    "sha256": "fb07c2c280ed49c1a212bba157a9daa55f4112179a75deb394867fb916d2e492"
+  },
+  {
+    "name": "wxt",
+    "version": "0.21.4",
+    "license": "MIT",
+    "file": "dist/utils/content-script-context.mjs",
+    "source": "third-party/runtime/wxt-0.21.4/dist/utils/content-script-context.mjs",
+    "sha256": "940954bdc136f1de83abd99f17f58d5e09d8010ad9b166d90970e23c4fe8bee4"
+  },
+  {
+    "name": "wxt",
+    "version": "0.21.4",
+    "license": "MIT",
+    "file": "dist/utils/define-background.mjs",
+    "source": "third-party/runtime/wxt-0.21.4/dist/utils/define-background.mjs",
+    "sha256": "332a417f0a79e0f89c8473bc8c693a3f14d2a6a6f4f38193f593a9431bc13c8c"
+  },
+  {
+    "name": "wxt",
+    "version": "0.21.4",
+    "license": "MIT",
+    "file": "dist/utils/define-content-script.mjs",
+    "source": "third-party/runtime/wxt-0.21.4/dist/utils/define-content-script.mjs",
+    "sha256": "b091992595232a2dd7cd0c1cbe178ff5265deb4e19bcae8f9818b443a5a02009"
+  },
+  {
+    "name": "wxt",
+    "version": "0.21.4",
+    "license": "MIT",
+    "file": "dist/utils/internal/custom-events.mjs",
+    "source": "third-party/runtime/wxt-0.21.4/dist/utils/internal/custom-events.mjs",
+    "sha256": "05dfa037b450798462a7b3d36ddf33d52ae2df5797cb381084b7eda482e13b98"
+  },
+  {
+    "name": "wxt",
+    "version": "0.21.4",
+    "license": "MIT",
+    "file": "dist/utils/internal/location-watcher.mjs",
+    "source": "third-party/runtime/wxt-0.21.4/dist/utils/internal/location-watcher.mjs",
+    "sha256": "d7c8d35e9fe369dd2a97c8adfd5bf49f5b53f36a2c1c401eada5c6f1cff9a0c9"
+  },
+  {
+    "name": "wxt",
+    "version": "0.21.4",
+    "license": "MIT",
+    "file": "dist/utils/internal/logger.mjs",
+    "source": "third-party/runtime/wxt-0.21.4/dist/utils/internal/logger.mjs",
+    "sha256": "3711e1dd982f1504e2b51724ffbf16f0d664e295dec0aacf163e17ab9efa4dde"
+  }
+]

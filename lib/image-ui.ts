@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { Bubble, Snippet } from './image-api';
 import { captureImage, contentBox, viewportContentBox, type ImageTarget } from './image-capture';
 import type { ImageLayout, Region } from './image-geometry';

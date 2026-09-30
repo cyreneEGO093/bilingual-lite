@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { it, expect, vi, afterEach } from 'vitest';
 import { parseGlossary, validateTranslationProfile, terminologyPrompt } from '../lib/translation-profile';
 import { translateText, clearTextCache } from '../lib/text-api';

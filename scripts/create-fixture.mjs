@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { chromium } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 const browser=await chromium.launch({channel:'chromium',...(process.env.TEST_BROWSER_PATH?{executablePath:process.env.TEST_BROWSER_PATH}:{})});

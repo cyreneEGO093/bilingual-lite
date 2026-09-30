@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { listModels, request, Queue, complete } from '../lib/api';
 const settings = { baseUrl:'https://openrouter.ai/api/v1', apiKey:'mock-key', targetLang:'简体中文', textModel:'mock', visionModel:'mock' };

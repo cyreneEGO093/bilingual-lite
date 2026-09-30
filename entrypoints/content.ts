@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { browser } from 'wxt/browser';
 import { TextTranslator } from '../lib/text-dom';
 import { OutputFormatError } from '../lib/translation-error';

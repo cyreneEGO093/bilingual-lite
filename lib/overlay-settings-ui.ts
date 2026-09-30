@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { getOverlayStyle, saveOverlayStyle } from './overlay-preferences';
 import { DEFAULT_OVERLAY_STYLE } from './overlay-style';
 

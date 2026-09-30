@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /** Hide originals without replacing their nodes or dropping page event handlers. */
 export function hideOriginal(source:HTMLElement,translation:HTMLElement):()=>void {
   const restore:(()=>void)[]=[];

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { it, expect, vi, afterEach } from 'vitest';
 import { scaledBox, moveBox, resizeBox, validateOverlayStyle } from '../lib/overlay-style';
 import { ImageOverlay } from '../lib/image-overlay';

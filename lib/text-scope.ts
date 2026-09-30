@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { browser } from 'wxt/browser';
 export type TextScope = 'viewport' | 'page';
 export function validTextScope(value: unknown): value is TextScope { return value === 'viewport' || value === 'page'; }

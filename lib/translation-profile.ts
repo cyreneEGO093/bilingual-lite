@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 export interface TranslationProfile { context:string; glossary:string }
 export interface GlossaryEntry { source:string; target:string }
 export const EMPTY_PROFILE:Readonly<TranslationProfile>={context:'',glossary:''};

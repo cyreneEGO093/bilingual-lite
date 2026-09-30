@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // An isolated HTTPS origin simulator: no traffic is forwarded to the Internet.
 // Certificates are generated per run and removed with the temporary directory.
 import { createServer } from 'node:http';

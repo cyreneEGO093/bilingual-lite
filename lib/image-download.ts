@@ -1,11 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { queue } from './api';
 import { drawGeometry, IMAGE_QUALITY, type ImageLayout } from './image-geometry';
 export async function fetchImage(url:unknown):Promise<string> {
   if(typeof url!=='string' || url.length>12000) throw new Error('图片地址无效。');
   const parsed=new URL(url); if(!['http:','https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('只支持 HTTP(S) 图片地址。');
+  if(parsed.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(parsed.hostname))throw new Error('远程图片下载必须使用 HTTPS。');
   return queue.run(async()=>{
     let response:Response;
-    try {response=await fetch(parsed.href,{credentials:'omit',signal:AbortSignal.timeout(30000)});} catch {throw new Error('图片下载失败，请检查网络。');}
+    try {response=await fetch(parsed.href,{credentials:'omit',redirect:'error',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(30000)});} catch {throw new Error('图片下载失败，请检查网络或使用无重定向的 HTTPS 图片地址。');}
     if(!response.ok) throw new Error(`图片下载失败（HTTP ${response.status}），可能需要登录或禁止外链。`);
     const mime=response.headers.get('Content-Type')?.split(';')[0]?.trim();
     if(!mime || !/^image\/(png|jpeg|webp|gif|avif)$/.test(mime)) throw new Error('仅支持 PNG、JPEG、WebP、GIF、AVIF 图片。');

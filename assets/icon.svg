@@ -1,0 +1,8 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only | Original Bilingual Lite icon, 2026. No font or third-party artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect x="4" y="4" width="120" height="120" rx="29" fill="#245d48"/>
+  <path d="M29 24h47a9 9 0 0 1 9 9v34a9 9 0 0 1-9 9H43L25 88V76a9 9 0 0 1-5-8V33a9 9 0 0 1 9-9Z" fill="#fbfaf3"/>
+  <path d="M51 36v6m-16 3h32M40 46q6 19 24 24M62 46Q56 63 38 70" fill="none" stroke="#245d48" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M69 60h30a9 9 0 0 1 9 9v25a9 9 0 0 1-5 8v11L88 103H69a9 9 0 0 1-9-9V69a9 9 0 0 1 9-9Z" fill="#bde0ad" stroke="#245d48" stroke-width="4"/>
+  <path d="m73 92 10-23h2l10 23m-18-8h14" fill="none" stroke="#245d48" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

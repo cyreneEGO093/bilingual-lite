@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Opt-in real API acceptance. One or two user-supplied images, no retries.
 // Key comes only from this process environment and temporary extension storage.
 import { chromium } from '@playwright/test';

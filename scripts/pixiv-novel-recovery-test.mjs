@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Optional real Pixiv DOM acceptance. Inference is entirely local and synthetic;
 // page content is neither printed nor saved, and no account cookie is imported.
 import { chromium } from '@playwright/test';

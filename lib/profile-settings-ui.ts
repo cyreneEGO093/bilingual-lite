@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { getTranslationProfile, saveTranslationProfile } from './profile-preferences';
 export async function mountProfileSettings(container:HTMLElement,report:(message:unknown)=>void){
   container.innerHTML=`<details class="overlay-settings"><summary>作品背景与专有名词</summary>

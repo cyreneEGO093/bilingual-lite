@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { complete } from './api';
 import type { Settings } from './settings';
 import { OutputFormatError } from './translation-error';

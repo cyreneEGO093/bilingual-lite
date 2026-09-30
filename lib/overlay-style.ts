@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { Bubble } from './image-api';
 
 export interface OverlayStyle { transparency: number; size: number }

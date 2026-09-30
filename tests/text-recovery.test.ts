@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { afterEach, expect, it, vi } from 'vitest';
 import { translateText, clearTextCache, type TextItem } from '../lib/text-api';
 import { TextTranslator } from '../lib/text-dom';

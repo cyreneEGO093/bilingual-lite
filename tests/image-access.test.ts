@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { beforeEach, it, expect, vi } from 'vitest';
 
 const updateSessionRules = vi.hoisted(() => vi.fn());

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import assert from 'node:assert/strict';
 
 export const recoveryPage='<!doctype html><meta charset="utf-8"><title>Novel recovery test</title><style>body{margin:40px}p{min-height:200px}</style>'+Array.from({length:19},(_,i)=>`<p>Recovery novel paragraph ${i}.</p>`).join('');

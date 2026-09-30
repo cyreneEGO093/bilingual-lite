@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { ImageLayout } from './image-geometry';
 import type { TextItem } from './text-api';
 import type { TextScope } from './text-scope';

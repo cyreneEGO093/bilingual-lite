@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 export interface Region { left:number; top:number; width:number; height:number }
 export interface ImageLayout { width:number; height:number; fit:string; position:string; crop?:Region }
 export const IMAGE_QUALITY = 0.85;

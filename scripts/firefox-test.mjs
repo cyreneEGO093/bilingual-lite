@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Firefox acceptance via the documented WebDriver API and Mozilla temporary add-on API.
 // TEST_FIREFOX_PATH and GECKODRIVER_PATH must point to dedicated test binaries.
 import { createServer } from 'node:http';

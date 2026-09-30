@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { browser } from 'wxt/browser';
 
 const PIXIV_RULE_ID = 1001;

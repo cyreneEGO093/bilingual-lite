@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Optional CPU OCR comparison; not an extension runtime dependency.
 
 Install rapidocr==3.9.2 onnxruntime==1.30.0 psutil==7.2.2 in a venv.

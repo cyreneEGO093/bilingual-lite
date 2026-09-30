@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { it, expect, vi } from 'vitest';
 const storage=vi.hoisted(()=>({get:vi.fn().mockResolvedValue({}),set:vi.fn().mockResolvedValue(undefined)}));
 vi.mock('wxt/browser',()=>({browser:{storage:{local:storage}}}));

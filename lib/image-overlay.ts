@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { Bubble } from './image-api';
 import { contentBox, type ImageTarget } from './image-capture';
 import { DEFAULT_OVERLAY_STYLE, validateOverlayStyle, scaledBox, moveBox, resizeBox, type OverlayStyle, type BubbleBox } from './overlay-style';

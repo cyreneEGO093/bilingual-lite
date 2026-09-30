@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { browser } from 'wxt/browser';
 import { DEFAULT_OVERLAY_STYLE, validateOverlayStyle, type OverlayStyle } from './overlay-style';
 export async function getOverlayStyle():Promise<OverlayStyle> {

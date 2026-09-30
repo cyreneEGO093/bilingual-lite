@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { chromium } from '@playwright/test';
 import { createServer } from 'node:http';
 import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';

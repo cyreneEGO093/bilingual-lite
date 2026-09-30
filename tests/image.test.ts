@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { it, expect, vi, afterEach } from 'vitest';
 import { validateBubbles, translateImage, translateSnippet, fetchImage } from '../lib/image-api';
 import { fittedRect, ImageOverlay } from '../lib/image-dom';
@@ -20,9 +21,9 @@ it('requests right-to-left full-image coordinates but no coordinates in snippet 
   const body=JSON.parse(fetch.mock.calls[0]![1].body);expect(body.messages[0].content).toContain('No coordinates');expect(body.max_tokens).toBe(1500);
   fetch.mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:'[]'}}]})});await translateImage(settings,'data:image/jpeg;base64,YQ==');expect(JSON.parse(fetch.mock.calls[1]![1].body).messages[0].content).toContain('RIGHT TO LEFT');
 });
-it('uses verified structured output for default vision models and validates wrapped bubbles',async()=>{
+it.each(['deepseek/deepseek-v4.1-flash','inclusionai/ling-3.0-flash-vl'])('uses verified structured output for %s and validates wrapped bubbles',async visionModel=>{
   const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({bubbles:[bubble]})}}]})});vi.stubGlobal('fetch',fetch);
-  expect(await translateImage({...settings,visionModel:'inclusionai/ling-3.0-flash-vl'},'data:image/jpeg;base64,YQ==')).toEqual([bubble]);
+  expect(await translateImage({...settings,visionModel},'data:image/jpeg;base64,YQ==')).toEqual([bubble]);
   const body=JSON.parse(fetch.mock.calls[0]![1].body);expect(body.response_format).toMatchObject({type:'json_schema',json_schema:{strict:true}});expect(body.provider).toEqual({require_parameters:true});
   expect(body.response_format.json_schema.schema.properties.bubbles.items.required).toContain('bbox');
 });
@@ -30,7 +31,14 @@ it('cross-origin downloader omits cookies and does not attach API credentials',a
   const bytes=new TextEncoder().encode('mock');const fetch=vi.fn().mockResolvedValue(new Response(bytes,{headers:{'Content-Type':'image/png'}}));vi.stubGlobal('fetch',fetch);
   expect(await fetchImage('https://images.example.com/manga.png')).toBe('data:image/png;base64,bW9jaw==');
   expect(fetch.mock.calls[0]![1].credentials).toBe('omit');expect(fetch.mock.calls[0]![1].headers).toBeUndefined();
+  expect(fetch.mock.calls[0]![1].redirect).toBe('error');expect(fetch.mock.calls[0]![1].referrerPolicy).toBe('no-referrer');
   await expect(fetchImage('file:///secret')).rejects.toThrow();
+});
+it('rejects unencrypted remote downloads before any network request',async()=>{
+  const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
+  await expect(fetchImage('http://images.example.com/page.png')).rejects.toThrow('HTTPS');expect(fetch).not.toHaveBeenCalled();
+  fetch.mockResolvedValue(new Response(new Uint8Array([1]),{headers:{'Content-Type':'image/png'}}));
+  expect(await fetchImage('http://127.0.0.1:8787/mock.png')).toMatch(/^data:image\/png;base64,/);
 });
 it('rejects non-image and oversized downloads',async()=>{
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('',{headers:{'Content-Type':'text/html'}})));await expect(fetchImage('https://example.com/a')).rejects.toThrow('仅支持');

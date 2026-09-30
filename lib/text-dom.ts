@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { TextItem, TextResult } from './text-api';
 import { hideOriginal } from './text-view';
 import type { TextScope } from './text-scope';

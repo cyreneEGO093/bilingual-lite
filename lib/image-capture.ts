@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { drawGeometry, IMAGE_QUALITY, type ImageLayout, type Region } from './image-geometry';
 export type ImageTarget = HTMLImageElement | HTMLCanvasElement;
 export function contentBox(target:ImageTarget) {
