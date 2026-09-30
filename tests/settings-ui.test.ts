@@ -14,4 +14,14 @@ it('saves the actual form and populates vision model choices',async()=>{
   expect(document.querySelector('#status')?.textContent).toContain('连接成功');
   const scope=document.querySelector<HTMLSelectElement>('#text-scope')!;expect(scope.value).toBe('viewport');scope.value='page';scope.dispatchEvent(new Event('change'));
   await vi.waitFor(()=>expect(api.set).toHaveBeenCalledWith({textScope:'page'}));
+  const transparency=document.querySelector<HTMLInputElement>('#overlay-transparency')!,size=document.querySelector<HTMLInputElement>('#overlay-size')!;
+  transparency.value='50';size.value='75';transparency.dispatchEvent(new Event('change'));
+  await vi.waitFor(()=>expect(api.set).toHaveBeenCalledWith({overlayStyle:{transparency:50,size:75}}));
+  expect(document.querySelector('#overlay-size-value')?.textContent).toBe('75%');
+  (document.querySelector('#overlay-defaults') as HTMLButtonElement).click();
+  await vi.waitFor(()=>expect(api.set).toHaveBeenCalledWith({overlayStyle:{transparency:0,size:100}}));
+  (document.querySelector('#translation-context') as HTMLTextAreaElement).value='Test game';
+  (document.querySelector('#translation-glossary') as HTMLTextAreaElement).value='Nora=诺拉';
+  (document.querySelector('#save-profile') as HTMLButtonElement).click();
+  await vi.waitFor(()=>expect(api.set).toHaveBeenCalledWith({translationProfile:{context:'Test game',glossary:'Nora=诺拉'}}));
 });

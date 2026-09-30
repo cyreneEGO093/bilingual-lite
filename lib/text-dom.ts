@@ -3,7 +3,19 @@ import { hideOriginal } from './text-view';
 import type { TextScope } from './text-scope';
 const SELECTOR = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,figcaption,td,th,article';
 const EXCLUDE = '[data-bl-owned],script,style,noscript,pre,code,textarea,input,select,button,nav,header,footer,[contenteditable]:not([contenteditable="false"]),[translate="no"],[aria-hidden="true"],[hidden]';
-export function textOf(element: HTMLElement): string { return element.textContent?.replace(/\s+/g,' ').trim() ?? ''; }
+export function textOf(element: HTMLElement): string {
+  const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT),parts:string[]=[];
+  let node:Node|null;
+  while((node=walker.nextNode())){
+    let excluded=false;
+    for(let parent=node.parentElement;parent;parent=parent.parentElement){
+      if(parent.matches(EXCLUDE)&&parent.dataset.blOwned!=='source-wrapper'){excluded=true;break;}
+      if(parent===element)break;
+    }
+    if(!excluded)parts.push(node.textContent??'');
+  }
+  return parts.join('').replace(/\s+/g,' ').trim();
+}
 export function candidates(root: ParentNode = document): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(SELECTOR)).filter(el => !el.closest(EXCLUDE) && !el.querySelector(SELECTOR) && textOf(el).length >= 3);
 }
@@ -73,7 +85,7 @@ export class TextTranslator {
     if (!this.enabled) return;
     for (const [el,state] of this.records) {
       // Remove our child translation before comparing source text in list/table cells.
-      const own = state.node; const text = Array.from(el.childNodes).filter(n=>n!==own).map(n=>n.textContent).join('').replace(/\s+/g,' ').trim();
+      const own = state.node; const text = textOf(el);
       if (!el.isConnected || text !== state.source) { state.restore?.();own?.remove(); this.records.delete(el); this.visible.delete(el); this.observer.unobserve(el); }
     }
     for (const el of candidates()) {

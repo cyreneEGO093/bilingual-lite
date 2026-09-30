@@ -1,6 +1,6 @@
 import { it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { candidates, chunks, TextTranslator } from '../lib/text-dom';
+import { candidates, chunks, TextTranslator, textOf } from '../lib/text-dom';
 import { translateText } from '../lib/text-api';
 import { hideOriginal } from '../lib/text-view';
 const settings={baseUrl:'https://openrouter.ai/api/v1',apiKey:'mock-key',targetLang:'简体中文',textModel:'test',visionModel:'test'};
@@ -45,6 +45,23 @@ it('restores list/table text nodes and event handlers after translated-only mode
   const t=document.createElement('div');t.textContent='译文';li.append(t);const reset=hideOriginal(li,t);
   expect(link.style.display).toBe('none');expect(t.style.display).toBe('');expect(li.querySelector('[data-bl-owned=source-wrapper]')).not.toBeNull();
   reset();expect(li.firstChild!.textContent).toBe('Original ');expect(link.style.display).toBe('');link.click();expect(clicked).toHaveBeenCalledTimes(1);
+});
+it('preserves nested covers, links, controls and CSS images when hiding a whole card',()=>{
+  document.body.innerHTML=readFileSync('tests/fixtures/cards.html','utf8');
+  const source=document.querySelector<HTMLElement>('#card-one')!,cover=document.querySelector<HTMLImageElement>('#cover-one')!,button=document.querySelector<HTMLButtonElement>('#bookmark')!;
+  const original=source.textContent,clicked=vi.fn();button.addEventListener('click',clicked);
+  const t=document.createElement('div');t.dataset.blOwned='translation';t.textContent='译文';source.append(t);
+  const reset=hideOriginal(source,t);
+  for(let el:HTMLElement|null=cover;el&&el!==source.parentElement;el=el.parentElement)expect(el.style.display).not.toBe('none');
+  expect(button.style.display).not.toBe('none');button.click();expect(clicked).toHaveBeenCalledOnce();expect(document.querySelector<HTMLElement>('.title')!.style.display).toBe('none');
+  expect(textOf(source)).not.toContain('Save novel');expect(textOf(source)).not.toContain('译文');expect(textOf(source)).toContain('An adventure');
+  reset();t.remove();expect(source.textContent).toBe(original);expect(document.querySelector('#cover-one')).toBe(cover);expect(button.dataset.clicks).toBe('1');
+  const card=document.querySelector<HTMLElement>('#background-card')!,bt=document.createElement('div');card.after(bt);const rb=hideOriginal(card,bt);expect(card.style.display).not.toBe('none');expect(document.querySelector<HTMLElement>('#background-cover')!.style.display).not.toBe('none');rb();
+});
+it('restores an image inside a paragraph without hiding the image or replacing nodes',()=>{
+  document.body.innerHTML='<p><a href="#"><img src="test.png">Image caption</a> trailing text</p>';
+  const p=document.querySelector('p')!,img=document.querySelector('img')!,original=p.innerHTML,t=document.createElement('div');p.after(t);
+  const restore=hideOriginal(p,t);expect(p.style.display).not.toBe('none');expect(img.parentElement!.style.display).not.toBe('none');restore();expect(p.innerHTML).toBe(original);expect(document.querySelector('img')).toBe(img);
 });
 it('translates all loaded paragraphs without intersection events, in bounded sequential batches',async()=>{
   vi.useFakeTimers();

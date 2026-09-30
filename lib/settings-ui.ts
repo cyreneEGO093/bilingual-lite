@@ -1,6 +1,8 @@
 import { browser } from 'wxt/browser';
 import { getSettings, saveSettings, type Settings } from './settings';
 import { getTextScope, saveTextScope } from './text-scope';
+import { mountOverlaySettings } from './overlay-settings-ui';
+import { mountProfileSettings } from './profile-settings-ui';
 import './ui.css';
 export async function mountSettings(popup = false) {
   const app = document.querySelector<HTMLElement>('#app')!;
@@ -8,6 +10,8 @@ export async function mountSettings(popup = false) {
     ${popup ? '<button id="toggle" class="primary" type="button">切换当前网页翻译 · Alt+Shift+T</button>' : ''}
     <label>网页翻译范围（自动保存）<select id="text-scope" disabled><option value="viewport">滚动翻译 · 只翻译可见段落</option><option value="page">整页翻译 · 分批翻译所有段落</option></select></label>
     <p>整页模式处理当前已加载的正文，无需滚动，可能增加用量。</p>
+    <div id="overlay-settings"></div>
+    <div id="profile-settings"></div>
     <form><label>API Endpoint<input name="baseUrl" type="url" required></label>
     <label>API Key<input name="apiKey" type="password" autocomplete="off" placeholder="仅保存在本机"></label>
     <label>目标语言<select name="targetLang"><option>简体中文</option><option>繁體中文</option><option>English</option><option>日本語</option><option>한국어</option><option>Français</option><option>Deutsch</option><option>Español</option></select></label>
@@ -18,6 +22,8 @@ export async function mountSettings(popup = false) {
   const form = app.querySelector('form')!;
   const status = app.querySelector<HTMLElement>('#status')!;
   const report = (e: unknown) => { status.textContent = e instanceof Error ? e.message : String(e); };
+  await mountOverlaySettings(app.querySelector<HTMLElement>('#overlay-settings')!,report);
+  await mountProfileSettings(app.querySelector<HTMLElement>('#profile-settings')!,report);
   const scopeSelect=app.querySelector<HTMLSelectElement>('#text-scope')!;
   try {scopeSelect.value=await getTextScope();} catch(e){report(e);} finally {scopeSelect.disabled=false;}
   scopeSelect.addEventListener('change',async()=>{

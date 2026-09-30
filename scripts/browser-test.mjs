@@ -19,6 +19,7 @@ const translations={
 };
 const server=createServer(async(req,res)=>{
   try {
+    if(req.url==='/cards'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/cards.html'));return;}
     if(req.url==='/manga.png'||req.url==='/protected.png'){
       // No ACAO. Simulate an anti-hotlink policy that rejects foreign referrers;
       // the protected route also requires a page referrer, so background fetch fails.
@@ -98,6 +99,26 @@ try {
   await page.keyboard.down('Shift');await page.mouse.move(moved.x+moved.width/2,moved.y+moved.height/2);await page.mouse.down();await page.mouse.move(moved.x+moved.width/2+25,moved.y+moved.height/2+15,{steps:5});await page.mouse.up();await page.keyboard.up('Shift');
   const resized=await page.locator('.bubble').first().boundingBox();assert.ok(Math.abs(resized.width-moved.width-25)<2);assert.ok(Math.abs(resized.height-moved.height-15)<2);
   await page.locator('img').hover({position:{x:10,y:10}});await page.getByRole('button',{name:'完成校准',exact:true}).click();assert.equal(imageRequests.length,1,'manual calibration does not call API');
+  // Visible handles work without entering calibration or holding Shift.
+  const dragHandle=async(locator,dx,dy)=>{await page.locator('.bubble').first().hover();const h=await locator.boundingBox();await page.mouse.move(h.x+h.width/2,h.y+h.height/2);await page.mouse.down();await page.mouse.move(h.x+h.width/2+dx,h.y+h.height/2+dy,{steps:5});await page.mouse.up();};
+  const directBefore=await page.locator('.bubble').first().boundingBox();
+  await dragHandle(page.getByRole('button',{name:'移动译文框',exact:true}).first(),20,10);
+  const directMoved=await page.locator('.bubble').first().boundingBox();assert.ok(Math.abs(directMoved.x-directBefore.x-20)<2);assert.ok(Math.abs(directMoved.y-directBefore.y-10)<2);
+  await dragHandle(page.getByRole('button',{name:'调整译文框大小',exact:true}).first(),30,20);
+  const directSized=await page.locator('.bubble').first().boundingBox();assert.ok(Math.abs(directSized.width-directMoved.width-30)<2);assert.ok(Math.abs(directSized.height-directMoved.height-20)<2);
+  const untouched=await page.locator('.bubble').nth(1).boundingBox();
+  await options.locator('summary').filter({hasText:'漫画译文框外观'}).click();
+  await options.locator('#overlay-size').evaluate(el=>{el.value='75';el.dispatchEvent(new Event('input'));el.dispatchEvent(new Event('change'));});
+  await options.locator('#overlay-transparency').evaluate(el=>{el.value='50';el.dispatchEvent(new Event('input'));el.dispatchEvent(new Event('change'));});
+  await page.waitForFunction(()=>document.querySelector('[data-bl-owned=image-overlay]').style.getPropertyValue('--bl-opacity')==='0.5');
+  const manualPreserved=await page.locator('.bubble').first().boundingBox(),smaller=await page.locator('.bubble').nth(1).boundingBox();assert.ok(Math.abs(manualPreserved.width-directSized.width)<1);assert.ok(Math.abs(manualPreserved.x-directSized.x)<1);assert.ok(Math.abs(smaller.width-untouched.width*.75)<1);
+  assert.equal(await page.locator('.bubble').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(255, 255, 255, 0.5)');assert.equal(await page.locator('.words').first().evaluate(el=>getComputedStyle(el).opacity),'1');
+  await page.locator('.bubble').first().hover();await page.screenshot({path:'evidence/overlay-controls.png'});
+  await options.reload();await options.locator('summary').filter({hasText:'漫画译文框外观'}).click();assert.equal(await options.locator('#overlay-size').inputValue(),'75');assert.equal(await options.locator('#overlay-transparency').inputValue(),'50');
+  await options.screenshot({path:'evidence/overlay-settings.png'});
+  await options.getByRole('button',{name:'恢复默认外观',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-bl-owned=image-overlay]').style.getPropertyValue('--bl-opacity')==='1');
+  await page.locator('img').hover({position:{x:5,y:5}});await page.getByRole('button',{name:'重置框位',exact:true}).click();await checkAlignment();assert.equal(imageRequests.length,1,'appearance, drag and reset never call API');
+  console.log('PASS bubble controls: direct move/resize handles, transparent background with opaque text, default scale, persistence, preserving manual edits, reset without API.');
   await page.getByRole('button',{name:'手动框选',exact:true}).click();await page.locator('[data-bl-owned=snip]').waitFor();await page.keyboard.press('Escape');assert.equal(await page.locator('[data-bl-owned=snip]').count(),0);assert.equal(snippetRequests.length,0);
   await page.locator('img').hover({position:{x:10,y:10}});await page.getByRole('button',{name:'手动框选',exact:true}).click();
   const ib=await page.locator('img').boundingBox();
@@ -144,6 +165,31 @@ try {
   assert.equal(await page.locator('.bl-translation').count(),7);assert.equal(await page.evaluate(()=>scrollY),0);
   await page.screenshot({path:'evidence/text-page-mode.png'});
   console.log('PASS translation scope: whole loaded page without scrolling, bounded batches, mode switch reuses results, offscreen dynamic content, preference persistence and Options sync.');
+  const saveProfile=async glossary=>{await options.locator('#translation-context').fill('Test game terminology');await options.locator('#translation-glossary').fill(glossary);await options.getByRole('button',{name:'保存术语与背景',exact:true}).click();await options.getByRole('status').filter({hasText:'术语与背景已保存'}).waitFor();};
+  await options.locator('summary').filter({hasText:'作品背景与专有名词'}).click();
+  const oldTextCalls=requests.length;
+  await saveProfile('garden = 庭园\nFRIEND = 伙伴');await page.waitForFunction(()=>!document.querySelector('.bl-translation'));assert.equal(requests.length,oldTextCalls,'saving terminology does not spend tokens');
+  await page.getByRole('button',{name:'译 · 开启翻译',exact:true}).click();await page.locator('.below + .bl-translation').waitFor();
+  assert.ok(requests.length>oldTextCalls);assert.ok(requests.slice(oldTextCalls).some(r=>r.messages[0].content.includes('庭园')));
+  await page.goto(`${base}/manga`);await page.locator('img').evaluate(img=>img.decode());await page.locator('img').hover();await page.getByRole('button',{name:'全文翻译',exact:true}).click();await page.locator('.bubble').first().waitFor();
+  assert.ok(imageRequests.at(-1).messages[1].content[0].text.includes('伙伴'));
+  const previousImages=imageRequests.length;await saveProfile('garden = 园圃\nFRIEND = 挚友');await page.waitForFunction(()=>!document.querySelector('[data-bl-owned=image-overlay]'));assert.equal(imageRequests.length,previousImages);
+  await page.locator('img').hover();await page.getByRole('button',{name:'全文翻译',exact:true}).click();await page.locator('.bubble').first().waitFor();assert.equal(imageRequests.length,previousImages+1);assert.ok(imageRequests.at(-1).messages[1].content[0].text.includes('挚友'));
+  await page.locator('img').hover({position:{x:5,y:5}});await page.getByRole('button',{name:'手动框选',exact:true}).click();const glossaryBox=await page.locator('img').boundingBox();
+  await page.mouse.move(glossaryBox.x+glossaryBox.width*.5,glossaryBox.y+glossaryBox.height*.1);await page.mouse.down();await page.mouse.move(glossaryBox.x+glossaryBox.width*.8,glossaryBox.y+glossaryBox.height*.3,{steps:5});await page.mouse.up();await page.locator('.bubble').filter({hasText:'局部测试译文'}).waitFor();assert.ok(snippetRequests.at(-1).messages[1].content[0].text.includes('挚友'));
+  await options.reload();await options.locator('summary').filter({hasText:'作品背景与专有名词'}).click();assert.equal(await options.locator('#translation-glossary').inputValue(),'garden = 园圃\nFRIEND = 挚友');await options.screenshot({path:'evidence/terminology-settings.png'});
+  console.log('PASS terminology: persistence, shared text/full/snippet reference, stale text and image invalidation; save causes no inference calls.');
+  await page.goto(`${base}/cards`);await page.locator('#cover-one').evaluate(img=>img.decode());
+  await page.getByRole('button',{name:'译 · 开启翻译',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.bl-translation').length===5);
+  const coverSize=await page.locator('#cover-one').boundingBox();
+  await page.getByRole('button',{name:'仅看译文',exact:true}).click();
+  for(const id of ['cover-one','cover-two','inline-cover','background-cover','bookmark'])assert.equal(await page.locator(`#${id}`).isVisible(),true,`${id} is preserved in translated-only mode`);
+  const coverAfter=await page.locator('#cover-one').boundingBox();assert.equal(coverAfter.width,coverSize.width);assert.equal(coverAfter.height,coverSize.height);
+  await page.locator('#bookmark').click();assert.equal(await page.locator('#bookmark').getAttribute('data-clicks'),'1');
+  await page.locator('#cover-link').click();assert.ok(page.url().endsWith('#cover-one'));await page.screenshot({path:'evidence/novel-cards-translated-only.png'});
+  await page.getByRole('button',{name:'显示双语',exact:true}).click();assert.equal(await page.locator('.title').first().isVisible(),true);
+  await page.getByRole('button',{name:'译 · 关闭翻译',exact:true}).click();assert.equal(await page.locator('.bl-translation').count(),0);assert.equal(await page.locator('#cover-one').isVisible(),true);
+  console.log('PASS novel cards: translated-only preserves nested covers, image links, buttons, CSS backgrounds and inline illustrations; sizes and click handlers intact; bilingual/stop restores original.');
   console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');
   console.log(`PASS image: CORS/hotlink fallback and 403, 1280x800 full image, 400x200 crop, reverse drag, Escape cancellation, exact snip placement, resize, hide/show, cached full; ${imageRequests.length} full + ${snippetRequests.length} snippet mock calls.`);
   console.log(`PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; ${requests.length} text mock calls; paid cost $0.`);

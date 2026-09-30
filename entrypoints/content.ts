@@ -4,6 +4,7 @@ import { installImageUI } from '../lib/image-dom';
 import type { BackgroundRequest, ApiReply } from '../lib/messages';
 import type { Bubble, Snippet } from '../lib/image-api';
 import { validTextScope, type TextScope } from '../lib/text-scope';
+import { validateOverlayStyle, type OverlayStyle } from '../lib/overlay-style';
 import '../lib/content.css';
 export default defineContentScript({
   matches: ['http://*/*','https://*/*'], runAt:'document_idle',
@@ -44,7 +45,9 @@ export default defineContentScript({
       full:dataUrl=>send<Bubble[]>({type:'translateImage',dataUrl}),
       snippet:dataUrl=>send<Snippet>({type:'translateSnippet',dataUrl})
     },showStatus);
-    const listener=(message: {type:string;url?:string;scope?:unknown})=>{if(message.type==='toggle') void scopeReady.then(()=>translator.toggle());if(message.type==='textScopeChanged'&&validTextScope(message.scope))applyScope(message.scope);if(message.type==='textMode')translator.toggleMode();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged') {translator.stop();images.reset(); showStatus('设置已更新，请重新开启翻译。'); button.textContent='译 · 开启翻译';mode.hidden=true;}};
+    let styleRevision=0;
+    void send<OverlayStyle>({type:'getOverlayStyle'}).then(style=>{if(styleRevision===0)images.setStyle(style);}).catch(e=>showStatus(e.message));
+    const listener=(message: {type:string;url?:string;scope?:unknown;style?:unknown})=>{if(message.type==='overlayStyleChanged'){try{styleRevision++;images.setStyle(validateOverlayStyle(message.style));}catch{/* Ignore malformed internal preferences. */}}if(message.type==='toggle') void scopeReady.then(()=>translator.toggle());if(message.type==='textScopeChanged'&&validTextScope(message.scope))applyScope(message.scope);if(message.type==='textMode')translator.toggleMode();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged'||message.type==='profileChanged') {translator.stop();images.reset(); showStatus(message.type==='profileChanged'?'术语与背景已更新，请重新翻译。':'设置已更新，请重新开启翻译。'); button.textContent='译 · 开启翻译';mode.hidden=true;}};
     browser.runtime.onMessage.addListener(listener);
     ctx.onInvalidated(()=>{translator.stop();images.destroy();clearTimeout(statusTimer);host.remove();browser.runtime.onMessage.removeListener(listener);});
   }
