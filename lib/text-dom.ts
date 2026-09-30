@@ -1,6 +1,7 @@
 import type { TextItem, TextResult } from './text-api';
 import { hideOriginal } from './text-view';
 import type { TextScope } from './text-scope';
+import { OutputFormatError } from './translation-error';
 const SELECTOR = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,figcaption,td,th,article';
 const EXCLUDE = '[data-bl-owned],script,style,noscript,pre,code,textarea,input,select,button,nav,header,footer,[contenteditable]:not([contenteditable="false"]),[translate="no"],[aria-hidden="true"],[hidden]';
 export function textOf(element: HTMLElement): string {
@@ -37,11 +38,13 @@ export function renderTranslation(source: HTMLElement, text: string) {
   if (['LI','TD','TH'].includes(source.tagName)) source.append(node); else source.after(node);
   return node;
 }
-interface RecordState { source: string; parts: string[]; translated: (string | undefined)[]; inflight: Set<number>; node?: HTMLElement; restore?:()=>void }
+interface RecordState { source: string; parts: string[]; translated: (string | undefined)[]; inflight: Set<number>; failed: Set<number>; node?: HTMLElement; restore?:()=>void }
 export class TextTranslator {
   enabled = false;
   onlyTranslated = false;
   scope: TextScope = 'viewport';
+  paused = false;
+  private consecutiveFailures = 0;
   private records = new Map<HTMLElement,RecordState>();
   private visible = new Set<HTMLElement>();
   private timer?: ReturnType<typeof setTimeout>;
@@ -50,6 +53,7 @@ export class TextTranslator {
   private busy = false;
   private observer: IntersectionObserver;
   private mutations: MutationObserver;
+  get failedCount() { return [...this.records.values()].reduce((n,state)=>n+state.failed.size,0); }
   constructor(private send: (items: TextItem[]) => Promise<TextResult[]>, private report: (message:string) => void) {
     this.observer = new IntersectionObserver(entries => {
       for (const entry of entries) entry.isIntersecting ? this.visible.add(entry.target as HTMLElement) : this.visible.delete(entry.target as HTMLElement);
@@ -67,9 +71,15 @@ export class TextTranslator {
   stop() {
     this.enabled=false; this.epoch++; clearTimeout(this.timer); clearTimeout(this.scanTimer);
     this.observer.disconnect(); this.mutations.disconnect(); this.visible.clear();
-    for (const state of this.records.values()) {state.restore?.();state.node?.remove();} this.records.clear();this.onlyTranslated=false;
+    for (const state of this.records.values()) {state.restore?.();state.node?.remove();} this.records.clear();this.onlyTranslated=false;this.paused=false;this.consecutiveFailures=0;
   }
   toggle() { if (this.enabled) { this.stop(); this.report('双语翻译已关闭。'); } else this.start(); }
+  retryFailed() {
+    if (!this.enabled || (!this.paused && !this.failedCount)) return;
+    for (const state of this.records.values()) state.failed.clear();
+    this.paused=false;this.consecutiveFailures=0;
+    this.report('已继续翻译未完成的段落，已完成译文保持不变。');this.schedule();
+  }
   setScope(scope: TextScope) {
     if (this.scope===scope) return;
     this.scope=scope;
@@ -91,19 +101,19 @@ export class TextTranslator {
     for (const el of candidates()) {
       if (this.records.has(el)) continue;
       const source=textOf(el), parts=chunks(source);
-      this.records.set(el,{source,parts,translated:[],inflight:new Set()}); this.observer.observe(el);
+      this.records.set(el,{source,parts,translated:[],inflight:new Set(),failed:new Set()}); this.observer.observe(el);
     }
     this.schedule();
   }
-  private schedule() { clearTimeout(this.timer); if (this.enabled) this.timer=setTimeout(()=>void this.flush(),250); }
+  private schedule() { clearTimeout(this.timer); if (this.enabled && !this.paused) this.timer=setTimeout(()=>void this.flush(),250); }
   private async flush() {
-    if (!this.enabled || this.busy) return;
+    if (!this.enabled || this.paused || this.busy) return;
     const work: { el:HTMLElement; state:RecordState; part:number; id:string; text:string }[]=[]; let size=0;
     for (const el of this.scope==='page'?this.records.keys():this.visible) {
       const state=this.records.get(el); if (!state || !el.isConnected || getComputedStyle(el).visibility==='hidden' || el.getClientRects().length===0) continue;
       for (let part=0;part<state.parts.length;part++) {
         const text=state.parts[part]!;
-        if (state.translated[part] !== undefined || state.inflight.has(part)) continue;
+        if (state.translated[part] !== undefined || state.inflight.has(part) || state.failed.has(part)) continue;
         if (work.length>=6 || size+text.length>1800) break;
         size+=text.length; work.push({el,state,part,id:String(work.length),text});
       }
@@ -113,19 +123,28 @@ export class TextTranslator {
     try {
       const result=await this.send(work.map(({id,text})=>({id,text})));
       if (!this.enabled || epoch!==this.epoch) return;
+      // Validate the entire batch before touching DOM or recording partial success.
+      if (!Array.isArray(result) || result.length!==work.length || new Set(result.map(r=>r?.id)).size!==work.length || work.some(w=>!result.some(r=>r?.id===w.id && typeof r.translated==='string' && r.translated.trim()))) throw new OutputFormatError('部分译文缺失或格式无效，请重试。');
+      this.consecutiveFailures=0;
       for (const w of work) {
         if (this.records.get(w.el)!==w.state || !w.el.isConnected) continue;
-        const translated=result.find(r=>r.id===w.id)?.translated;
-        if (translated===undefined) throw new Error('部分译文缺失，请重新开启翻译。');
+        const translated=result.find(r=>r.id===w.id)!.translated;
         w.state.translated[w.part]=translated;
         if (w.state.parts.every((_,i)=>w.state.translated[i]!==undefined)) {w.state.node=renderTranslation(w.el,w.state.translated.join(' '));if(this.onlyTranslated)w.state.restore=hideOriginal(w.el,w.state.node);}
       }
       if(this.scope==='page'){
-        const pending=[...this.records].some(([el,state])=>!state.node&&el.isConnected&&getComputedStyle(el).visibility!=='hidden'&&el.getClientRects().length>0);
-        this.report(pending?'本批段落已完成，整页翻译继续处理中。':'当前已加载页面翻译完成。');
+        const pending=[...this.records].some(([el,state])=>state.parts.some((_,i)=>state.translated[i]===undefined&&!state.failed.has(i))&&el.isConnected&&getComputedStyle(el).visibility!=='hidden'&&el.getClientRects().length>0);
+        this.report(pending?'本批段落已完成，整页翻译继续处理中。':this.failedCount?`其余段落已完成，${this.failedCount} 个片段待重试。`:'当前已加载页面翻译完成。');
       }else this.report('可见段落翻译完成。滚动后按需继续。');
     } catch (e) {
-      if (epoch===this.epoch) { this.stop(); this.report(e instanceof Error?e.message:'翻译失败，请重试。'); }
+      if (this.enabled && epoch===this.epoch) {
+        for (const w of work) if (this.records.get(w.el)===w.state && w.el.isConnected && w.state.translated[w.part]===undefined) w.state.failed.add(w.part);
+        this.consecutiveFailures++;
+        this.paused=!(e instanceof OutputFormatError) || this.consecutiveFailures>=3;
+        if(e instanceof OutputFormatError){
+          this.report(this.paused?'连续 3 批译文格式异常，已暂停后续请求并保留现有译文。可点击“重试并继续”。':'本批译文格式异常，已保留原文并继续其他段落。可点击“重试未完成”。');
+        }else this.report(`${e instanceof Error?e.message:'翻译失败。'} 已暂停并保留现有译文，可点击“重试并继续”。`);
+      }
     } finally { this.busy=false; work.forEach(w=>w.state.inflight.delete(w.part)); this.schedule(); }
   }
 }

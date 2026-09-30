@@ -1,4 +1,5 @@
 import type { Settings } from './settings';
+import { OutputFormatError } from './translation-error';
 
 export const MAX_OUTPUT_TOKENS = 1500;
 export const TEMPERATURE = 0.1;
@@ -77,9 +78,9 @@ export async function listModels(s: Settings): Promise<ModelInfo[]> {
   }));
 }
 export function parseJson(content: unknown): unknown {
-  if(typeof content!=='string')throw new Error('模型未返回文本。');
+  if(typeof content!=='string')throw new OutputFormatError('模型未返回文本。');
   try{return JSON.parse(content.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''));}
-  catch{throw new Error('模型未返回有效 JSON，请缩小框选范围或更换模型。');}
+  catch{throw new OutputFormatError('模型未返回有效 JSON，请减少输入或更换模型。');}
 }
 export interface OutputSchema { name:string; schema:Record<string,unknown> }
 export async function complete(s: Settings, model: string, messages: ChatMessage[], shape?:OutputSchema): Promise<unknown> {

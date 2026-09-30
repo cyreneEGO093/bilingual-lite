@@ -1,5 +1,7 @@
 import { browser } from 'wxt/browser';
 import { TextTranslator } from '../lib/text-dom';
+import { OutputFormatError } from '../lib/translation-error';
+import type { TextResult } from '../lib/text-api';
 import { installImageUI } from '../lib/image-dom';
 import type { BackgroundRequest, ApiReply } from '../lib/messages';
 import type { Bubble, Snippet } from '../lib/image-api';
@@ -22,10 +24,12 @@ export default defineContentScript({
       statusTimer=setTimeout(()=>{status.textContent='';},3000);
     };
     mode.id='text-mode';mode.textContent='仅看译文';mode.hidden=true;mode.style.marginLeft='5px';root.append(mode);
+    const retry=document.createElement('button');retry.id='text-retry';retry.textContent='重试未完成';retry.hidden=true;retry.style.marginLeft='5px';root.append(retry);
     const translator=new TextTranslator(async items=>{
-      const result=await browser.runtime.sendMessage({type:'translateText',items});
-      if (!result.ok) throw new Error(result.error); return result.data;
-    },message=>{showStatus(message); button.textContent=translator.enabled?'译 · 关闭翻译':'译 · 开启翻译';mode.hidden=!translator.enabled;mode.textContent=translator.onlyTranslated?'显示双语':'仅看译文';});
+      const result:ApiReply<TextResult[]>=await browser.runtime.sendMessage({type:'translateText',items});
+      if (!result.ok) throw result.code==='output-format'?new OutputFormatError(result.error):new Error(result.error); return result.data;
+    },message=>{showStatus(message); button.textContent=translator.enabled?'译 · 关闭翻译':'译 · 开启翻译';mode.hidden=!translator.enabled;mode.textContent=translator.onlyTranslated?'显示双语':'仅看译文';retry.hidden=!translator.enabled||(!translator.paused&&!translator.failedCount);retry.textContent=translator.paused?'重试并继续':'重试未完成';retry.title=translator.paused?'已暂停后续请求；保留现有译文，点击重试未完成段落。':`${translator.failedCount} 个片段待重试；已完成译文不会重复请求。`;});
+    retry.addEventListener('click',()=>translator.retryFailed());
     const scopeSelect=document.createElement('select');
     scopeSelect.id='text-scope';scopeSelect.setAttribute('aria-label','网页翻译范围');
     scopeSelect.innerHTML='<option value="viewport">滚动翻译</option><option value="page">整页翻译</option>';
@@ -47,7 +51,7 @@ export default defineContentScript({
     },showStatus);
     let styleRevision=0;
     void send<OverlayStyle>({type:'getOverlayStyle'}).then(style=>{if(styleRevision===0)images.setStyle(style);}).catch(e=>showStatus(e.message));
-    const listener=(message: {type:string;url?:string;scope?:unknown;style?:unknown})=>{if(message.type==='overlayStyleChanged'){try{styleRevision++;images.setStyle(validateOverlayStyle(message.style));}catch{/* Ignore malformed internal preferences. */}}if(message.type==='toggle') void scopeReady.then(()=>translator.toggle());if(message.type==='textScopeChanged'&&validTextScope(message.scope))applyScope(message.scope);if(message.type==='textMode')translator.toggleMode();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged'||message.type==='profileChanged') {translator.stop();images.reset(); showStatus(message.type==='profileChanged'?'术语与背景已更新，请重新翻译。':'设置已更新，请重新开启翻译。'); button.textContent='译 · 开启翻译';mode.hidden=true;}};
+    const listener=(message: {type:string;url?:string;scope?:unknown;style?:unknown})=>{if(message.type==='overlayStyleChanged'){try{styleRevision++;images.setStyle(validateOverlayStyle(message.style));}catch{/* Ignore malformed internal preferences. */}}if(message.type==='toggle') void scopeReady.then(()=>translator.toggle());if(message.type==='textScopeChanged'&&validTextScope(message.scope))applyScope(message.scope);if(message.type==='textMode')translator.toggleMode();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged'||message.type==='profileChanged') {translator.stop();images.reset(); showStatus(message.type==='profileChanged'?'术语与背景已更新，请重新翻译。':'设置已更新，请重新开启翻译。'); button.textContent='译 · 开启翻译';mode.hidden=true;retry.hidden=true;}};
     browser.runtime.onMessage.addListener(listener);
     ctx.onInvalidated(()=>{translator.stop();images.destroy();clearTimeout(statusTimer);host.remove();browser.runtime.onMessage.removeListener(listener);});
   }

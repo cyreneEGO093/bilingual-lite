@@ -7,16 +7,20 @@ import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { startPixivProxy } from './pixiv-test-proxy.mjs';
+import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-scenario.mjs';
+const recovery=recoveryMock();
 async function freePort(){const socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const port=socket.address().port;await new Promise(r=>socket.close(r));return port;}
 if(!process.env.TEST_FIREFOX_PATH||!process.env.GECKODRIVER_PATH)throw new Error('Set TEST_FIREFOX_PATH and GECKODRIVER_PATH.');
 let textRequests=0,imageRequests=0,snippetRequests=0,downloads=0;
 const completions=[];
 const server=createServer(async(req,res)=>{
   try{
+    if(req.url==='/text-recovery'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(recoveryPage);return;}
     if(req.url==='/cards'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/cards.html'));return;}
     if(req.url==='/v1/models'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:[{id:'mock-vision',architecture:{input_modalities:['image','text']}}]}));return;}
     if(req.url==='/v1/chat/completions'){
       let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);completions.push(body);assert.equal(req.headers.authorization,'Bearer mock-key');
+      const recoveryReply=recovery.reply(body);if(recoveryReply){res.setHeader('Content-Type','application/json');res.end(recoveryReply);return;}
       const isImage=Array.isArray(body.messages[1].content),isSnippet=isImage&&body.messages[1].content[0].text.includes('框内');isSnippet?snippetRequests++:isImage?imageRequests++:textRequests++;
       const result=isSnippet?{original:'Test crop',translated:'Firefox 局部译文'}:isImage?[{original:'Hello friend',translated:'你好，朋友！一起阅读吧。',bbox:[100,90,320,430]},{original:'A new world',translated:'新世界正在等待我们。',bbox:[560,560,780,920]}]:JSON.parse(body.messages[1].content).map(i=>({id:i.id,translated:'中文译文：'+i.text}));
       res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(result)}}]}));return;
@@ -132,5 +136,6 @@ try{
   await writeFile('evidence/firefox-novel-cards.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
   await run("document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('button').click()");assert.equal(await run("return document.querySelectorAll('.bl-translation').length"),0);
   console.log('PASS Firefox novel cards: covers, media and buttons remain visible and functional in whole-page translated-only mode.');
+  await go(`${base}/text-recovery`);await wait("return !!document.querySelector('[data-bl-owned=controls]')");await checkTextRecovery(run,wait,recovery.calls);
   console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, CORS image, bubbles, toggle, real pointer snip drag and precise crop overlay; ${textRequests} text + ${imageRequests} full + ${snippetRequests} snip mock requests.`);
 }catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads,pixiv:pixiv.requests});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await pixiv.close();await new Promise(r=>server.close(r));}
