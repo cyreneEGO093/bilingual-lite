@@ -5,6 +5,7 @@ import type { ImageLayout, Region } from './image-geometry';
 import { ImageOverlay } from './image-overlay';
 import { selectRegion } from './image-snip';
 import { DEFAULT_OVERLAY_STYLE, validateOverlayStyle, type OverlayStyle } from './overlay-style';
+import { placeImageToolbar } from './image-toolbar-layout';
 
 export interface ImageTransport {
   fetchImage(url:string,layout:ImageLayout):Promise<string>;
@@ -14,17 +15,32 @@ export interface ImageTransport {
 function signature(target:ImageTarget){const b=contentBox(target);return `${target instanceof HTMLImageElement?target.currentSrc:`${target.width}x${target.height}`}|${(b.w/b.h).toFixed(3)}`;}
 export function installImageUI(transport:ImageTransport,report:(text:string)=>void) {
   const host=document.createElement('div');host.dataset.blOwned='image-button';
-  Object.assign(host.style,{position:'fixed',zIndex:'2147483647',display:'none',maxWidth:'calc(100vw - 8px)'});
+  Object.assign(host.style,{position:'fixed',zIndex:'2147483647',display:'none',width:'max-content',maxWidth:'calc(100vw - 8px)'});
   const root=host.attachShadow({mode:'open'});
-  root.innerHTML='<style>:host{all:initial}.bar{display:flex;flex-wrap:wrap;gap:3px}button{font:12px system-ui;border:1px solid #d5e4d7;background:#245d48;color:#fff;border-radius:7px;padding:7px 9px;cursor:pointer;box-shadow:0 2px 8px #0003}button:disabled{opacity:.55;cursor:wait}button[hidden]{display:none}</style><div class="bar"><button id="full">全文翻译</button><button id="snip">手动框选</button><button id="clear" disabled>清除遮罩</button><button id="adjust" hidden>校准位置</button><button id="reset-layout" hidden>重置框位</button></div>';
+  root.innerHTML='<style>:host{all:initial}.bar{display:flex;flex-wrap:wrap;gap:3px;max-width:calc(100vw - 8px)}button{font:12px system-ui;border:1px solid #d5e4d7;background:#245d48;color:#fff;border-radius:7px;padding:7px 9px;cursor:pointer;box-shadow:0 2px 8px #0003}button:disabled{opacity:.55;cursor:wait}button[hidden],.bar[hidden]{display:none}</style><button id="expand" hidden aria-expanded="false" aria-controls="bar">图片工具</button><div class="bar" id="bar"><button id="full">全文翻译</button><button id="snip">手动框选</button><button id="clear" disabled>清除遮罩</button><button id="adjust" hidden>校准位置</button><button id="reset-layout" hidden>重置框位</button><button id="collapse" title="收起工具栏（Esc）" aria-label="收起图片工具栏">收起</button></div>';
   document.documentElement.append(host);
   const full=root.querySelector<HTMLButtonElement>('#full')!,snip=root.querySelector<HTMLButtonElement>('#snip')!,clear=root.querySelector<HTMLButtonElement>('#clear')!,adjust=root.querySelector<HTMLButtonElement>('#adjust')!;
   const resetLayout=root.querySelector<HTMLButtonElement>('#reset-layout')!;
+  const bar=root.querySelector<HTMLElement>('#bar')!,expand=root.querySelector<HTMLButtonElement>('#expand')!,collapse=root.querySelector<HTMLButtonElement>('#collapse')!;
+  let collapsed=false,expandedByUser=false,hideTimer:ReturnType<typeof setTimeout>|undefined;
   let style:OverlayStyle={...DEFAULT_OVERLAY_STYLE};
   let current:ImageTarget|undefined,lastContext:ImageTarget|undefined,epoch=0,cancelSelection:(()=>void)|undefined;
   const busy=new WeakSet<ImageTarget>(),overlays=new Map<ImageTarget,ImageOverlay>(),fullDone=new WeakSet<ImageTarget>();
   function overlayFor(target:ImageTarget){const o=overlays.get(target);if(o&&(o.host.dataset.stale||!o.host.isConnected)){o.destroy();overlays.delete(target);fullDone.delete(target);return undefined;}return o;}
-  function position(){if(!current?.isConnected){host.style.display='none';return;}const b=viewportContentBox(current),width=host.offsetWidth;host.style.left=`${Math.max(4,Math.min(innerWidth-width-4,b.left+b.width-width-4))}px`;host.style.top=`${Math.max(4,b.top+6)}px`;}
+  function position(){
+    if(!current?.isConnected){host.style.display='none';return;}if(host.style.display==='none')return;
+    const b=viewportContentBox(current),viewport={width:innerWidth,height:innerHeight};
+    if(b.top>=innerHeight||b.top+b.height<=0||b.left>=innerWidth||b.left+b.width<=0){host.style.visibility='hidden';return;}host.style.visibility='visible';
+    bar.hidden=collapsed;expand.hidden=!collapsed;
+    const obstacles=overlays.get(current)?.bubbleRects()??[];
+    let point=placeImageToolbar(b,{width:host.offsetWidth,height:host.offsetHeight},viewport,obstacles);
+    if(!point&&!collapsed&&!expandedByUser){bar.hidden=true;expand.hidden=false;point=placeImageToolbar(b,{width:host.offsetWidth,height:host.offsetHeight},viewport,obstacles);}
+    // If bubbles fill the viewport, keep the compact control clear of their handles.
+    if(!point)point=placeImageToolbar(b,{width:host.offsetWidth,height:host.offsetHeight},viewport,overlays.get(current)?.handleRects()??[]);
+    const width=host.offsetWidth,height=host.offsetHeight;
+    host.style.left=`${point?.left??Math.max(4,Math.min(innerWidth-width-4,b.left+b.width-width-4))}px`;
+    host.style.top=`${point?.top??Math.max(4,Math.min(innerHeight-height-4,b.top+6))}px`;
+  }
   function refresh(){const o=current?overlayFor(current):undefined;full.disabled=snip.disabled=current?busy.has(current):false;full.textContent=full.disabled?'翻译中…':'全文翻译';clear.disabled=!o;clear.textContent=o?.host.hidden?'恢复遮罩':'清除遮罩';adjust.hidden=resetLayout.hidden=!o;adjust.textContent=o?.editing?'完成校准':'校准位置';position();}
   async function translate(target:ImageTarget,crop?:Region){
     if(busy.has(target))return;
@@ -41,20 +57,25 @@ export function installImageUI(transport:ImageTransport,report:(text:string)=>vo
       if(!bubbles.length){report('所选图片中没有识别到可读对白。');return;}
       const previous=overlayFor(target);
       if(crop&&previous){previous.add(bubbles,true);previous.host.hidden=false;}
-      else{previous?.destroy();overlays.set(target,new ImageOverlay(target,bubbles,style));}
+      else{previous?.destroy();overlays.set(target,new ImageOverlay(target,bubbles,style,position));}
       if(!crop)fullDone.add(target);
       report(crop?'局部译文已放入选区。移到框上可拖动手柄调整。':`已翻译 ${bubbles.length} 个对白区域。框的左上角可移动，右下角可缩放。`);
     }catch(e){report(e instanceof Error?e.message:'图片翻译失败。');}
     finally{busy.delete(target);refresh();}
   }
   function beginSnip(){if(!current||busy.has(current))return;cancelSelection?.();const target=current;report('在图片上拖动框选，Esc 取消。');cancelSelection=selectRegion(target,crop=>{cancelSelection=undefined;if(crop)void translate(target,crop);else report('框选已取消或区域过小，未调用 API。');});}
-  const over=(e:Event)=>{const t=e.target;if(t===host||(t instanceof Element&&t.closest('[data-bl-owned]')))return;if(t instanceof HTMLImageElement||t instanceof HTMLCanvasElement){if(t.clientWidth<=300||t.clientHeight<=300){host.style.display='none';return;}if(current!==t)cancelSelection?.();current=t;host.style.display='block';refresh();}else if(!cancelSelection)host.style.display='none';};
+  const stopHide=()=>{clearTimeout(hideTimer);hideTimer=undefined;};
+  const over=(e:Event)=>{const t=e.target;stopHide();if(t===host||(t instanceof Element&&t.closest('[data-bl-owned]')))return;if(t instanceof HTMLImageElement||t instanceof HTMLCanvasElement){if(t.clientWidth<=300||t.clientHeight<=300){host.style.display='none';return;}if(current!==t){cancelSelection?.();collapsed=expandedByUser=false;}current=t;host.style.display='block';refresh();}else if(!cancelSelection)hideTimer=setTimeout(()=>{if(!root.activeElement)host.style.display='none';},200);};
   const context=(e:Event)=>{lastContext=e.target instanceof HTMLImageElement||e.target instanceof HTMLCanvasElement?e.target:undefined;};
   full.addEventListener('click',()=>{cancelSelection?.();if(current)void translate(current);});snip.addEventListener('click',beginSnip);
   clear.addEventListener('click',()=>{if(current){overlayFor(current)?.toggle();refresh();}});
   adjust.addEventListener('click',()=>{if(current){const editing=overlayFor(current)?.edit();report(editing?'拖动框移动，拖右下角手柄缩放；也支持 Shift + 拖动。':'校准完成。手柄仍可随时拖动。');refresh();}});
   resetLayout.addEventListener('click',()=>{if(current){overlayFor(current)?.resetLayout();report('已按默认大小恢复框位，未重复翻译。');}});
+  collapse.addEventListener('click',()=>{collapsed=true;expandedByUser=false;position();expand.focus();});
+  expand.addEventListener('click',()=>{collapsed=false;expandedByUser=true;position();collapse.focus();});
+  const key=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!cancelSelection&&host.style.display!=='none'&&current){collapsed=true;expandedByUser=false;position();if(event.composedPath().includes(host))expand.focus();}};
   document.addEventListener('pointerover',over,true);document.addEventListener('contextmenu',context,true);window.addEventListener('scroll',position,true);window.addEventListener('resize',position);
+  document.addEventListener('keydown',key);
   function reset(){epoch++;cancelSelection?.();for(const [target,o] of overlays){o.destroy();fullDone.delete(target);}overlays.clear();refresh();}
-  return {setStyle:(value:OverlayStyle)=>{style=validateOverlayStyle(value);for(const o of overlays.values())o.setStyle(style);},contextTranslate:(url?:string)=>{const target=lastContext??Array.from(document.images).find(img=>img.currentSrc===url||img.src===url);if(target)void translate(target);else report('未找到图片，请使用图片工具条。');},reset,destroy:()=>{reset();host.remove();document.removeEventListener('pointerover',over,true);document.removeEventListener('contextmenu',context,true);window.removeEventListener('scroll',position,true);window.removeEventListener('resize',position);}};
+  return {setStyle:(value:OverlayStyle)=>{style=validateOverlayStyle(value);for(const o of overlays.values())o.setStyle(style);},contextTranslate:(url?:string)=>{const target=lastContext??Array.from(document.images).find(img=>img.currentSrc===url||img.src===url);if(target)void translate(target);else report('未找到图片，请使用图片工具条。');},reset,destroy:()=>{stopHide();reset();host.remove();document.removeEventListener('pointerover',over,true);document.removeEventListener('contextmenu',context,true);document.removeEventListener('keydown',key);window.removeEventListener('scroll',position,true);window.removeEventListener('resize',position);}};
 }

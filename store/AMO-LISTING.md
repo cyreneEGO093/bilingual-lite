@@ -27,7 +27,7 @@
 
 项目主页：https://github.com/cyreneEGO093/bilingual-lite
 
-本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.2/bilingual-lite-0.3.2-source.zip
+本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.3/bilingual-lite-0.3.3-source.zip
 
 ## Other submission fields
 
@@ -35,9 +35,17 @@
 - Platform: desktop Firefox.
 - Icon: `assets/icon-512.png` or `public/icons/128.png` (upload separately).
 - Privacy policy: copy the complete `PRIVACY.md` text into AMO's privacy-policy field.
-- Source attachment: `bilingual-lite-0.3.2-source.zip`; build/review instructions: `BUILDING.md`.
+- Source attachment: `bilingual-lite-0.3.3-source.zip`; build/review instructions: `BUILDING.md`.
 - Homepage: https://github.com/cyreneEGO093/bilingual-lite
 - Support: https://github.com/cyreneEGO093/bilingual-lite/issues (no response or maintenance commitment).
 - Payment disclosure: API service may require a paid account; the extension is free.
+
+## Reviewer notes for 0.3.3
+
+This updates the existing add-on and retains its approved Gecko ID. It fixes the image toolbar covering translation bubble drag handles: the toolbar now prefers space outside the image, avoids bubbles, follows layout changes, and can be collapsed. No new permissions, dependencies, API behavior or data collection are introduced.
+
+The matching source attachment is `bilingual-lite-0.3.3-source.zip`. Build with Node.js 24 and npm 11: extract into an empty directory, run `npm ci`, `npm test`, `npm run build`, `npm run lint:firefox`, then `npm run zip`. The Firefox output is `dist/firefox-mv3/` and `dist/bilingual-lite-0.3.3-firefox.zip`. Compare extracted file contents, as ZIP timestamps may differ. Detailed instructions and an account-free local review server are in `BUILDING.md`.
+
+Validation: 85 automated tests, real extension interaction tests in Chrome 153 and Firefox 155, and Firefox lint with zero errors, warnings or notices. All interaction fixtures use local mock responses; no API credentials are included.
 
 This file is not part of the installable extension ZIP.

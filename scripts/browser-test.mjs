@@ -7,7 +7,9 @@ import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 import { startPixivProxy } from './pixiv-test-proxy.mjs';
 import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-scenario.mjs';
+import { serveToolbarFixture, toolbarBubbles, checkImageToolbar } from './image-toolbar-scenario.mjs';
 const recovery=recoveryMock();
+let toolbarTesting=false;
 
 const requests=[];
 const imageRequests=[],snippetRequests=[];let imageDownloads=0;
@@ -22,6 +24,7 @@ const translations={
 };
 const server=createServer(async(req,res)=>{
   try {
+    if(serveToolbarFixture(req,res))return;
     if(req.url==='/text-recovery'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(recoveryPage);return;}
     if(req.url==='/cards'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/cards.html'));return;}
     if(req.url==='/manga.png'||req.url==='/protected.png'){
@@ -36,7 +39,7 @@ const server=createServer(async(req,res)=>{
     if(req.url==='/v1/chat/completions') {
       let raw=''; for await(const part of req) raw+=part; const body=JSON.parse(raw);
       const recoveryReply=recovery.reply(body);if(recoveryReply){res.setHeader('Content-Type','application/json');res.end(recoveryReply);return;}
-      if(Array.isArray(body.messages[1].content)){const snippet=body.messages[1].content[0].text.includes('框内');(snippet?snippetRequests:imageRequests).push(body);assert.equal(body.max_tokens,1500);assert.deepEqual(body.reasoning,{enabled:false});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(snippet?{original:'Test crop',translated:'局部测试译文'}:bubbles)}}]}));return;}
+      if(Array.isArray(body.messages[1].content)){const snippet=body.messages[1].content[0].text.includes('框内');(snippet?snippetRequests:imageRequests).push(body);assert.equal(body.max_tokens,1500);assert.deepEqual(body.reasoning,{enabled:false});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(snippet?{original:'Test crop',translated:'局部测试译文'}:toolbarTesting?toolbarBubbles:bubbles)}}]}));return;}
       requests.push(body);
       assert.equal(req.headers.authorization,'Bearer mock-key');
       const items=JSON.parse(body.messages[1].content);
@@ -197,6 +200,9 @@ try {
   console.log('PASS novel cards: translated-only preserves nested covers, image links, buttons, CSS backgrounds and inline illustrations; sizes and click handlers intact; bilingual/stop restores original.');
   await page.goto(`${base}/text-recovery`);
   await checkTextRecovery(script=>page.evaluate(s=>new Function(s)(),script),script=>page.waitForFunction(s=>new Function(s)(),script),recovery.calls);
+  toolbarTesting=true;await page.goto(`${base}/toolbar`);
+  await checkImageToolbar({run:(script,args=[])=>page.evaluate(({script,args})=>new Function(script)(...args),{script,args}),wait:script=>page.waitForFunction(s=>new Function(s)(),script),move:(x,y)=>page.mouse.move(x,y),click:async(x,y)=>{await page.mouse.move(x,y,{steps:4});await page.mouse.click(x,y);},drag:async(x,y,dx,dy)=>{await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+dx,y+dy,{steps:5});await page.mouse.up();},escape:()=>page.keyboard.press('Escape'),resize:(width,height)=>page.setViewportSize({width,height}),calls:()=>imageRequests.length+snippetRequests.length});
+  await page.screenshot({path:'evidence/image-toolbar-chrome.png'});
   console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');
   console.log(`PASS image: CORS/hotlink fallback and 403, 1280x800 full image, 400x200 crop, reverse drag, Escape cancellation, exact snip placement, resize, hide/show, cached full; ${imageRequests.length} full + ${snippetRequests.length} snippet mock calls.`);
   console.log(`PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; ${requests.length} text mock calls; paid cost $0.`);

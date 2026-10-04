@@ -17,7 +17,7 @@ export class ImageOverlay {
   private style:OverlayStyle;
   private originals=new Map<HTMLElement,{bbox:Bubble['bbox'];manual:boolean}>();
   private cancelDrag?:()=>void;
-  constructor(private target:ImageTarget,bubbles:Bubble[],style:OverlayStyle=DEFAULT_OVERLAY_STYLE) {
+  constructor(private target:ImageTarget,bubbles:Bubble[],style:OverlayStyle=DEFAULT_OVERLAY_STYLE,private onLayout:()=>void=()=>{}) {
     this.style=validateOverlayStyle(style);
     this.parent=(target.parentElement?.tagName==='PICTURE'?target.parentElement.parentElement:target.parentElement)??document.body;
     const record=parents.get(this.parent);
@@ -86,7 +86,10 @@ export class ImageOverlay {
       const words=node.querySelector<HTMLElement>('.words')!;
       while(size>10&&(words.scrollHeight>words.clientHeight+1||words.scrollWidth>words.clientWidth+1)){size=Math.max(10,size-1);node.style.setProperty('--bl-font',`${size}px`);}
     }
+    this.onLayout();
   }
+  bubbleRects(){return this.host.hidden||!this.host.isConnected?[]:Array.from(this.root.querySelectorAll<HTMLElement>('.bubble'),node=>node.getBoundingClientRect());}
+  handleRects(){return this.host.hidden||!this.host.isConnected?[]:Array.from(this.root.querySelectorAll<HTMLElement>('.handle'),node=>node.getBoundingClientRect());}
   toggle(){this.host.hidden=!this.host.hidden;}
   edit(){this.cancelDrag?.();this.editing=!this.editing;this.host.hidden=false;this.host.toggleAttribute('data-editing',this.editing);return this.editing;}
   destroy(){if(this.disposed)return;this.disposed=true;this.cancelDrag?.();cancelAnimationFrame(this.frame);this.observer.disconnect();this.originals.clear();this.host.remove();const record=parents.get(this.parent);if(record&&!--record.count){if(this.parent.style.position==='relative')this.parent.style.position=record.original;parents.delete(this.parent);}}

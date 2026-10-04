@@ -8,9 +8,9 @@
 
 轻量的网页与漫画翻译扩展，支持 **Chrome / Firefox Manifest V3**。使用自己的 API Key，自选 OpenAI 兼容服务和模型。原生 TypeScript / CSS，无 UI 框架，无需安装 Python 或本地 OCR。
 
-[下载 v0.3.2](https://github.com/cyreneEGO093/bilingual-lite/releases/tag/v0.3.2) · [详细使用指南](USAGE.md) · [隐私说明](PRIVACY.md) · [反馈问题](https://github.com/cyreneEGO093/bilingual-lite/issues)
+[Firefox 商店安装](https://addons.mozilla.org/zh-CN/firefox/addon/bilingual-lite/) · [下载 v0.3.3](https://github.com/cyreneEGO093/bilingual-lite/releases/tag/v0.3.3) · [详细使用指南](USAGE.md) · [隐私说明](PRIVACY.md) · [反馈问题](https://github.com/cyreneEGO093/bilingual-lite/issues)
 
-> 当前为开发者加载版本，Firefox 安装包尚未获得 Mozilla 签名，也尚未在扩展商店上架。扩展本身免费；所选 API 服务可能按用量收费。
+> Firefox 版已在 Mozilla 附加组件商店上架。GitHub 的 Firefox ZIP 用于临时加载和提交审核，未签名；商店版本可能晚于 GitHub，请以商店显示的版本号为准。扩展本身免费；所选 API 服务可能按用量收费。
 
 ## 可以做什么
 
@@ -36,10 +36,10 @@
 
 | 文件 | 用途 |
 |---|---|
-| `bilingual-lite-0.3.2-chrome.zip` | Chrome 安装文件；Edge 可按下述方法加载同一包 |
-| `bilingual-lite-0.3.2-firefox.zip` | Firefox 临时加载／商店提交文件，目前未签名 |
-| `bilingual-lite-0.3.2-source.zip` | 完整对应源码、锁文件、构建材料与第三方许可 |
-| `bilingual-lite-0.3.2-SHA256.txt` | 下载文件的 SHA-256 校验值 |
+| `bilingual-lite-0.3.3-chrome.zip` | Chrome 安装文件；Edge 可按下述方法加载同一包 |
+| `bilingual-lite-0.3.3-firefox.zip` | Firefox 临时加载／商店提交文件，未签名 |
+| `bilingual-lite-0.3.3-source.zip` | 完整对应源码、锁文件、构建材料与第三方许可 |
+| `bilingual-lite-0.3.3-SHA256.txt` | 下载文件的 SHA-256 校验值 |
 
 安装包仅含运行代码、图标以及必要的许可和隐私资源，不含交付说明、测试样图或 API Key。
 
@@ -53,13 +53,17 @@ Chrome 已完成实际扩展测试；Edge 使用相同的 Chromium 包，本版�
 
 ### Firefox 140+
 
-0.3.2 使用新的 Firefox 扩展标识，作为独立扩展安装，不能自动继承 0.3.0 / 0.3.1 旧标识下的设置。请在新扩展中重新配置；后续版本将继续沿用这个新标识。
+日常使用请从 [Mozilla 附加组件商店](https://addons.mozilla.org/zh-CN/firefox/addon/bilingual-lite/) 安装，后续已审核版本可通过商店更新。
+
+0.3.3 沿用 0.3.2 的扩展标识。0.3.0 / 0.3.1 使用旧标识，设置无法自动迁移，请重新配置。
+
+开发或审核时可临时加载 GitHub 安装包：
 
 1. 下载并解压 `firefox.zip`。
 2. 打开 `about:debugging#/runtime/this-firefox`，点击“临时载入附加组件”。
 3. 选择解压目录内的 `manifest.json`。
 
-临时扩展在 Firefox 重启后会卸载；正式长期安装需要 Mozilla 签名。本项目当前面向桌面浏览器，未完成移动端验收。
+临时扩展在 Firefox 重启后会卸载；商店安装不受此限制。本项目当前面向桌面浏览器，未完成移动端验收。
 
 ## 第一次使用
 
@@ -104,7 +108,7 @@ npm run zip
 
 构建目录为 `dist/chrome-mv3/` 和 `dist/firefox-mv3/`。开发模式使用 `npm run dev` 或 `npm run dev:firefox`。构建和自动测试无需 API Key；付费模型测试不会自动执行。
 
-v0.3.0 已完成 79 项自动测试、Chrome 153 / Firefox 155 实际扩展交互测试；Mozilla 检查为 0 errors / 0 warnings / 0 notices。独立源码重建的两个浏览器运行文件逐字节一致。这些检查不代表已获商店审核或保证模型质量。
+v0.3.3 已完成 85 项自动测试、Chrome 153 / Firefox 155 实际扩展交互测试，包括顶部气泡、长图滚动、窄窗口下的工具栏避让及真实鼠标拖动。Mozilla 检查为 0 errors / 0 warnings / 0 notices。这些检查不代表该版本已获商店审核或保证模型质量。
 
 - [构建复现与无需付费 API 的本地验收](BUILDING.md)
 - [来源、许可证与发布检查](COMPLIANCE.md)
@@ -118,4 +122,4 @@ v0.3.0 已完成 79 项自动测试、Chrome 153 / Firefox 155 实际扩展交�
 
 项目以 **GPL-3.0-only** 发布，完整许可见 [LICENSE](LICENSE)，版权和适用范围见 [COPYRIGHT.md](COPYRIGHT.md)。第三方运行时代码保留各自的 MIT 许可，见 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。
 
-对应版本的完整源码可从本仓库和 [Release 源码附件](https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.2/bilingual-lite-0.3.2-source.zip) 获取。再分发修改版时，请按许可证保留声明并提供相应源码。本项目不提供任何担保，不保证可靠性或后续维护。
+对应版本的完整源码可从本仓库和 [Release 源码附件](https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.3/bilingual-lite-0.3.3-source.zip) 获取。再分发修改版时，请按许可证保留声明并提供相应源码。本项目不提供任何担保，不保证可靠性或后续维护。
