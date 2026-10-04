@@ -8,7 +8,7 @@
 
 轻量的网页与漫画翻译扩展，支持 **Chrome / Firefox Manifest V3**。使用自己的 API Key，自选 OpenAI 兼容服务和模型。原生 TypeScript / CSS，无 UI 框架，无需安装 Python 或本地 OCR。
 
-[Firefox 商店安装](https://addons.mozilla.org/zh-CN/firefox/addon/bilingual-lite/) · [下载 v0.3.3](https://github.com/cyreneEGO093/bilingual-lite/releases/tag/v0.3.3) · [详细使用指南](USAGE.md) · [隐私说明](PRIVACY.md) · [反馈问题](https://github.com/cyreneEGO093/bilingual-lite/issues)
+[Firefox 商店安装](https://addons.mozilla.org/zh-CN/firefox/addon/bilingual-lite/) · [下载 v0.4.0](https://github.com/cyreneEGO093/bilingual-lite/releases/tag/v0.4.0) · [详细使用指南](USAGE.md) · [隐私说明](PRIVACY.md) · [反馈问题](https://github.com/cyreneEGO093/bilingual-lite/issues)
 
 > Firefox 版已在 Mozilla 附加组件商店上架。GitHub 的 Firefox ZIP 用于临时加载和提交审核，未签名；商店版本可能晚于 GitHub，请以商店显示的版本号为准。扩展本身免费；所选 API 服务可能按用量收费。
 
@@ -20,6 +20,7 @@
 - **可调整译文框**：移动、缩放、隐藏／恢复，设置默认大小与背景透明度。
 - **作品背景与术语表**：统一角色、技能和职业等专有名词，网页、整图及框选共用。
 - **异常恢复**：单批格式错误保留原文和已完成译文，可单独重试未完成部分。
+- **移动端操作**：Firefox Android 支持长按图片打开工具栏；翻译入口可拖动、收起，避开输入区并跟随软键盘调整位置。
 - **BYOK 配置**：自选服务地址、文本／图片模型与目标语言；支持兼容的本机回环服务。
 
 ### 交互预览
@@ -30,16 +31,20 @@
 
 ![漫画译文覆盖与框选](evidence/manga-overlay.png)
 
+Android 模拟器：输入时收起入口并避开软键盘。
+
+<img src="evidence/android-keyboard.png" width="280" alt="Android Firefox 软键盘与翻译入口">
+
 ## 下载与安装
 
 前往 [Releases](https://github.com/cyreneEGO093/bilingual-lite/releases)。请按用途选择文件：
 
 | 文件 | 用途 |
 |---|---|
-| `bilingual-lite-0.3.3-chrome.zip` | Chrome 安装文件；Edge 可按下述方法加载同一包 |
-| `bilingual-lite-0.3.3-firefox.zip` | Firefox 临时加载／商店提交文件，未签名 |
-| `bilingual-lite-0.3.3-source.zip` | 完整对应源码、锁文件、构建材料与第三方许可 |
-| `bilingual-lite-0.3.3-SHA256.txt` | 下载文件的 SHA-256 校验值 |
+| `bilingual-lite-0.4.0-chrome.zip` | Chrome 安装文件；Edge 可按下述方法加载同一包 |
+| `bilingual-lite-0.4.0-firefox.zip` | Firefox 临时加载／商店提交文件，未签名 |
+| `bilingual-lite-0.4.0-source.zip` | 完整对应源码、锁文件、构建材料与第三方许可 |
+| `bilingual-lite-0.4.0-SHA256.txt` | 下载文件的 SHA-256 校验值 |
 
 安装包仅含运行代码、图标以及必要的许可和隐私资源，不含交付说明、测试样图或 API Key。
 
@@ -55,7 +60,7 @@ Chrome 已完成实际扩展测试；Edge 使用相同的 Chromium 包，本版�
 
 日常使用请从 [Mozilla 附加组件商店](https://addons.mozilla.org/zh-CN/firefox/addon/bilingual-lite/) 安装，后续已审核版本可通过商店更新。
 
-0.3.3 沿用 0.3.2 的扩展标识。0.3.0 / 0.3.1 使用旧标识，设置无法自动迁移，请重新配置。
+0.4.0 沿用 0.3.2 的扩展标识。0.3.0 / 0.3.1 使用旧标识，设置无法自动迁移，请重新配置。
 
 开发或审核时可临时加载 GitHub 安装包：
 
@@ -63,7 +68,13 @@ Chrome 已完成实际扩展测试；Edge 使用相同的 Chromium 包，本版�
 2. 打开 `about:debugging#/runtime/this-firefox`，点击“临时载入附加组件”。
 3. 选择解压目录内的 `manifest.json`。
 
-临时扩展在 Firefox 重启后会卸载；商店安装不受此限制。本项目当前面向桌面浏览器，未完成移动端验收。
+临时扩展在 Firefox 重启后会卸载；商店安装不受此限制。
+
+### Firefox Android 142+
+
+0.4.0 加入 Android 适配，已在 Android 14 模拟器的 Firefox 157 中完成实际扩展测试；尚未在实体手机上验收。日常安装需要等待对应版本通过商店审核并启用 Android 兼容性。GitHub 的未签名 ZIP 不能直接作为普通手机安装包，开发调试见 [BUILDING.md](BUILDING.md)。不支持 iOS Firefox。
+
+手机上点击圆形“译”按钮展开面板；拖动圆形入口或面板的点阵手柄可移动，点击“收起”缩回。长按图片约半秒打开图片工具栏，再选择整图或框选翻译；直接滑动图片仍用于浏览页面。
 
 ## 第一次使用
 
@@ -71,6 +82,8 @@ Chrome 已完成实际扩展测试；Edge 使用相同的 Chromium 包，本版�
 2. 点击“连接并查询模型”核对服务连接和模型列表。图片翻译需要所选模型支持图像输入；模型可用性和价格以服务提供者为准。
 3. 刷新已有网页。选择“滚动翻译”或“整页翻译”，点击右下角“开启翻译”，也可按 `Alt+Shift+T`。
 4. 漫画图片展示尺寸大于 300×300 时，悬停显示工具栏；点击“全文翻译”或“手动框选”。
+
+面板会尽量避让输入框、发送按钮等页面控件，聚焦页面输入框时自动收起。特殊布局下仍可能遮挡，可拖到合适位置；位置只在当前页面保留。桌面使用快捷键，触屏使用浮动入口；手机图片可在较小显示尺寸下长按操作。
 
 升级时覆盖原扩展目录、在扩展管理页重新加载，再刷新网页。已有用户保存的模型不会被新版默认值覆盖；如需更换，请在设置中修改。
 
@@ -108,7 +121,7 @@ npm run zip
 
 构建目录为 `dist/chrome-mv3/` 和 `dist/firefox-mv3/`。开发模式使用 `npm run dev` 或 `npm run dev:firefox`。构建和自动测试无需 API Key；付费模型测试不会自动执行。
 
-v0.3.3 已完成 85 项自动测试、Chrome 153 / Firefox 155 实际扩展交互测试，包括顶部气泡、长图滚动、窄窗口下的工具栏避让及真实鼠标拖动。Mozilla 检查为 0 errors / 0 warnings / 0 notices。这些检查不代表该版本已获商店审核或保证模型质量。
+v0.4.0 已完成 95 项自动测试、桌面 Chrome 153 / Firefox 155 及 Android 14 模拟器 Firefox 157 的实际扩展交互测试。移动端验证包含原生触摸、软键盘、输入与发送按钮、长按图片、框选、译文框拖动／缩放和横屏。Mozilla 检查为 0 errors / 0 warnings / 0 notices。测试全部使用本地模拟 API，不消耗付费模型额度，也不代表该版本已获商店审核或保证模型质量。
 
 - [构建复现与无需付费 API 的本地验收](BUILDING.md)
 - [来源、许可证与发布检查](COMPLIANCE.md)
@@ -122,4 +135,4 @@ v0.3.3 已完成 85 项自动测试、Chrome 153 / Firefox 155 实际扩展交�
 
 项目以 **GPL-3.0-only** 发布，完整许可见 [LICENSE](LICENSE)，版权和适用范围见 [COPYRIGHT.md](COPYRIGHT.md)。第三方运行时代码保留各自的 MIT 许可，见 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。
 
-对应版本的完整源码可从本仓库和 [Release 源码附件](https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.3.3/bilingual-lite-0.3.3-source.zip) 获取。再分发修改版时，请按许可证保留声明并提供相应源码。本项目不提供任何担保，不保证可靠性或后续维护。
+对应版本的完整源码可从本仓库和 [Release 源码附件](https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.4.0/bilingual-lite-0.4.0-source.zip) 获取。再分发修改版时，请按许可证保留声明并提供相应源码。本项目不提供任何担保，不保证可靠性或后续维护。

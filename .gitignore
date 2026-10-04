@@ -12,6 +12,7 @@ playwright-report/
 # archive includes synthetic fixtures and the aggregate benchmark report.
 evidence/live-*
 evidence/ocr-*
+evidence/android-failure.png
 # Private development journals and historical evaluation notes are not published.
 /PATCH-*.md
 /COMPARISON.md

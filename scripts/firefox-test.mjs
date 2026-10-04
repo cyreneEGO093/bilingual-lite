@@ -10,6 +10,7 @@ import net from 'node:net';
 import { startPixivProxy } from './pixiv-test-proxy.mjs';
 import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-scenario.mjs';
 import { serveToolbarFixture, toolbarBubbles, checkImageToolbar } from './image-toolbar-scenario.mjs';
+import { serveMobileFixture, checkComposer } from './mobile-fixtures.mjs';
 const recovery=recoveryMock();
 let toolbarTesting=false;
 const addonManifest=JSON.parse(await readFile('dist/firefox-mv3/manifest.json','utf8'));
@@ -21,7 +22,7 @@ let textRequests=0,imageRequests=0,snippetRequests=0,downloads=0;
 const completions=[];
 const server=createServer(async(req,res)=>{
   try{
-    if(serveToolbarFixture(req,res))return;
+    if(serveToolbarFixture(req,res)||serveMobileFixture(req,res))return;
     if(req.url==='/text-recovery'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(recoveryPage);return;}
     if(req.url==='/cards'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/cards.html'));return;}
     if(req.url==='/v1/models'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:[{id:'mock-vision',architecture:{input_modalities:['image','text']}}]}));return;}
@@ -149,5 +150,9 @@ try{
   const moveTo=(x,y)=>({type:'pointerMove',duration:100,origin:'viewport',x:Math.round(x),y:Math.round(y)});
   await checkImageToolbar({run,wait,move:(x,y)=>pointer([moveTo(x,y)]),click:(x,y)=>pointer([moveTo(x,y),{type:'pointerDown',button:0},{type:'pointerUp',button:0}]),drag:(x,y,dx,dy)=>pointer([moveTo(x,y),{type:'pointerDown',button:0},moveTo(x+dx,y+dy),{type:'pointerUp',button:0}]),escape:()=>command('POST',`/session/${session}/actions`,{actions:[{type:'key',id:'toolbar-key',actions:[{type:'keyDown',value:'\uE00C'},{type:'keyUp',value:'\uE00C'}]}]}),resize:(width,height)=>command('POST',`/session/${session}/window/rect`,{width,height}),calls:()=>imageRequests+snippetRequests});
   await writeFile('evidence/image-toolbar-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  await go(`${base}/mobile`);
+  const controlPoint=expression=>run(`const r=(${expression}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}`);
+  await checkComposer({run,wait,press:async expression=>{const p=await controlPoint(expression);await pointer([moveTo(p.x,p.y),{type:'pointerDown',button:0},{type:'pointerUp',button:0}]);},drag:async(expression,dx,dy)=>{const p=await controlPoint(expression);await pointer([moveTo(p.x,p.y),{type:'pointerDown',button:0},moveTo(p.x+dx,p.y+dy),{type:'pointerUp',button:0}]);}});
+  await writeFile('evidence/floating-controls-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
   console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, CORS image, bubbles, toggle, real pointer snip drag and precise crop overlay; ${textRequests} text + ${imageRequests} full + ${snippetRequests} snip mock requests.`);
 }catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads,pixiv:pixiv.requests});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await pixiv.close();await new Promise(r=>server.close(r));}

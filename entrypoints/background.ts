@@ -13,9 +13,10 @@ import { getTranslationProfile } from '../lib/profile-preferences';
 export default defineBackground(() => {
   // Chromium can prevent content scripts from reading local storage directly.
   browser.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
-  browser.runtime.onInstalled.addListener(()=>{browser.contextMenus.removeAll().then(()=>browser.contextMenus.create({id:'translate-image',title:'翻译图片 / 漫画',contexts:['image']})).catch(()=>{});});
-  browser.contextMenus.onClicked.addListener((info,tab)=>{if(info.menuItemId==='translate-image'&&tab?.id)void browser.tabs.sendMessage(tab.id,{type:'contextImage',url:info.srcUrl},{frameId:info.frameId??0}).catch(()=>{});});
-  browser.commands.onCommand.addListener(async command => {
+  browser.runtime.onInstalled.addListener(()=>{browser.contextMenus?.removeAll().then(()=>browser.contextMenus.create({id:'translate-image',title:'翻译图片 / 漫画',contexts:['image']})).catch(()=>{});});
+  browser.contextMenus?.onClicked.addListener((info,tab)=>{if(info.menuItemId==='translate-image'&&tab?.id)void browser.tabs.sendMessage(tab.id,{type:'contextImage',url:info.srcUrl},{frameId:info.frameId??0}).catch(()=>{});});
+  // Firefox for Android has no keyboard commands API. Do not stop background initialization.
+  browser.commands?.onCommand.addListener(async command => {
     if(command!=='toggle-translation') return;
     const [tab]=await browser.tabs.query({active:true,currentWindow:true});
     if(tab?.id) await browser.tabs.sendMessage(tab.id,{type:'toggle'}).catch(()=>{});

@@ -2,8 +2,11 @@
 // Optional AMO functional-review fixture. No cloud, key, or user content needed.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { serveMobileFixture } from './mobile-fixtures.mjs';
+import { serveToolbarFixture } from './image-toolbar-scenario.mjs';
 const server=createServer(async(req,res)=>{
   try {
+    if(serveMobileFixture(req,res)||serveToolbarFixture(req,res))return;
     if(req.url==='/v1/models') {
       res.setHeader('Content-Type','application/json');
       res.end(JSON.stringify({data:[{id:'deepseek/deepseek-v4.1-flash',architecture:{input_modalities:['text','image']},context_length:10000}]}));return;

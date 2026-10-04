@@ -34,7 +34,7 @@ export class ImageOverlay {
       .resize-handle{bottom:1px;right:1px;cursor:nwse-resize}.resize-handle::after{content:'↘'}
       .bubble:hover .handle,.bubble:focus-within .handle,:host([data-editing]) .handle{opacity:1}
       .bubble:hover{outline:1px solid #245d4880}:host([data-editing]) .bubble{outline:2px dashed #245d48;cursor:move;touch-action:none;user-select:none}
-      .handle:focus-visible{outline:2px solid #f7b846;outline-offset:-2px}@media(pointer:coarse){.handle{opacity:1}}
+      .handle:focus-visible{outline:2px solid #f7b846;outline-offset:-2px}@media(pointer:coarse){.handle{opacity:1;width:32px;height:32px;font-size:22px;line-height:28px}}
       </style>`;
     this.host.style.setProperty('--bl-opacity',String(1-this.style.transparency/100));
     this.parent.append(this.host);this.observer=new ResizeObserver(()=>this.update());this.observer.observe(target);this.observer.observe(this.parent);

@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { startPixivProxy } from './pixiv-test-proxy.mjs';
 import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-scenario.mjs';
 import { serveToolbarFixture, toolbarBubbles, checkImageToolbar } from './image-toolbar-scenario.mjs';
+import { serveMobileFixture, checkComposer } from './mobile-fixtures.mjs';
 const recovery=recoveryMock();
 let toolbarTesting=false;
 
@@ -24,7 +25,7 @@ const translations={
 };
 const server=createServer(async(req,res)=>{
   try {
-    if(serveToolbarFixture(req,res))return;
+    if(serveToolbarFixture(req,res)||serveMobileFixture(req,res))return;
     if(req.url==='/text-recovery'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(recoveryPage);return;}
     if(req.url==='/cards'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/cards.html'));return;}
     if(req.url==='/manga.png'||req.url==='/protected.png'){
@@ -203,7 +204,11 @@ try {
   toolbarTesting=true;await page.goto(`${base}/toolbar`);
   await checkImageToolbar({run:(script,args=[])=>page.evaluate(({script,args})=>new Function(script)(...args),{script,args}),wait:script=>page.waitForFunction(s=>new Function(s)(),script),move:(x,y)=>page.mouse.move(x,y),click:async(x,y)=>{await page.mouse.move(x,y,{steps:4});await page.mouse.click(x,y);},drag:async(x,y,dx,dy)=>{await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+dx,y+dy,{steps:5});await page.mouse.up();},escape:()=>page.keyboard.press('Escape'),resize:(width,height)=>page.setViewportSize({width,height}),calls:()=>imageRequests.length+snippetRequests.length});
   await page.screenshot({path:'evidence/image-toolbar-chrome.png'});
+  await page.goto(`${base}/mobile`);
+  const controlPoint=expression=>page.evaluate(s=>{const r=new Function(`return ${s}`)().getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};},expression);
+  await checkComposer({run:script=>page.evaluate(s=>new Function(s)(),script),wait:script=>page.waitForFunction(s=>new Function(s)(),script),press:async expression=>{const p=await controlPoint(expression);await page.mouse.click(p.x,p.y);},drag:async(expression,dx,dy)=>{const p=await controlPoint(expression);await page.mouse.move(p.x,p.y);await page.mouse.down();await page.mouse.move(p.x+dx,p.y+dy,{steps:5});await page.mouse.up();}});
+  await page.screenshot({path:'evidence/floating-controls-chrome.png'});
   console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');
   console.log(`PASS image: CORS/hotlink fallback and 403, 1280x800 full image, 400x200 crop, reverse drag, Escape cancellation, exact snip placement, resize, hide/show, cached full; ${imageRequests.length} full + ${snippetRequests.length} snippet mock calls.`);
   console.log(`PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; ${requests.length} text mock calls; paid cost $0.`);
-} finally { await context?.close();await pixiv.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true}); }
+} finally { await context?.close();await pixiv.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:250}); }

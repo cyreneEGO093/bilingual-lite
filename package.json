@@ -1,7 +1,7 @@
 {
   "name": "bilingual-lite",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.4.0",
   "license": "GPL-3.0-only",
   "author": "Bilingual Lite contributors",
   "type": "module",
@@ -16,6 +16,7 @@
     "lint:firefox": "web-ext lint --source-dir dist/firefox-mv3 --warnings-as-errors",
     "check": "wxt prepare && tsc --noEmit",
     "test": "vitest run",
+    "test:android": "node scripts/firefox-android-test.mjs",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {

@@ -4,3 +4,6 @@
 .overlay-settings{margin:16px 0;padding:12px;border:1px solid #cdd7cc;border-radius:10px;background:#fff}.overlay-settings summary{cursor:pointer;font-weight:600}.overlay-settings p{font-size:12px;color:#66766e}.overlay-settings input[type=range]{padding:0;accent-color:#245d48}.overlay-settings button{margin-top:10px}
 
 textarea{display:block;box-sizing:border-box;width:100%;margin-top:5px;padding:10px;border:1px solid #cdd7cc;border-radius:8px;background:white;color:inherit;font:13px/1.5 system-ui;resize:vertical}textarea:focus{outline:2px solid #5e9c7c}
+
+.popup{max-width:100vw}.actions{flex-wrap:wrap}input,select,textarea{min-width:0}
+@media(max-width:480px){main,.popup main{margin:0;padding:16px}h1{font-size:20px}input,select,textarea{font-size:16px}button,input,select{min-height:44px}.actions button{flex:1}header{gap:10px}}
