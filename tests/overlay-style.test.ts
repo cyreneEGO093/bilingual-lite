@@ -21,6 +21,7 @@ it('updates backgrounds and untouched boxes, preserves manual edits, and resets 
   document.body.innerHTML='<div style="position:static"><img></div>';const img=document.querySelector('img')!;
   Object.defineProperties(img,{clientWidth:{value:800},clientHeight:{value:500}});
   const bubble:Bubble={original:'Hello',translated:'你好',bbox:[100,90,320,430]};
+  vi.stubGlobal('matchMedia',()=>({matches:false}));
   const overlay=new ImageOverlay(img,[bubble],{transparency:40,size:50});
   vi.spyOn(overlay.host,'getBoundingClientRect').mockReturnValue({width:800,height:500} as DOMRect);
   const node=overlay.host.shadowRoot!.querySelector<HTMLElement>('.bubble')!;

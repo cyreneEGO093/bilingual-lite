@@ -11,6 +11,7 @@ import { startPixivProxy } from './pixiv-test-proxy.mjs';
 import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-scenario.mjs';
 import { serveToolbarFixture, toolbarBubbles, checkImageToolbar } from './image-toolbar-scenario.mjs';
 import { serveMobileFixture, checkComposer } from './mobile-fixtures.mjs';
+import { serveBatchFixture, checkBatch } from './image-batch-scenario.mjs';
 const recovery=recoveryMock();
 let toolbarTesting=false;
 const addonManifest=JSON.parse(await readFile('dist/firefox-mv3/manifest.json','utf8'));
@@ -22,7 +23,7 @@ let textRequests=0,imageRequests=0,snippetRequests=0,downloads=0;
 const completions=[];
 const server=createServer(async(req,res)=>{
   try{
-    if(serveToolbarFixture(req,res)||serveMobileFixture(req,res))return;
+    if(serveToolbarFixture(req,res)||serveMobileFixture(req,res)||serveBatchFixture(req,res))return;
     if(req.url==='/text-recovery'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(recoveryPage);return;}
     if(req.url==='/cards'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/cards.html'));return;}
     if(req.url==='/v1/models'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:[{id:'mock-vision',architecture:{input_modalities:['image','text']}}]}));return;}
@@ -154,5 +155,17 @@ try{
   const controlPoint=expression=>run(`const r=(${expression}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}`);
   await checkComposer({run,wait,press:async expression=>{const p=await controlPoint(expression);await pointer([moveTo(p.x,p.y),{type:'pointerDown',button:0},{type:'pointerUp',button:0}]);},drag:async(expression,dx,dy)=>{const p=await controlPoint(expression);await pointer([moveTo(p.x,p.y),{type:'pointerDown',button:0},moveTo(p.x+dx,p.y+dy),{type:'pointerUp',button:0}]);}});
   await writeFile('evidence/floating-controls-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  await go(`${base}/batch`);await wait("return document.querySelector('#one').complete");
+  const imageCount=imageRequests;
+  await pointer([moveTo(150,100),{type:'pointerDown',button:2},{type:'pointerUp',button:2}]);
+  await command('POST',`/session/${session}/moz/context`,{context:'chrome'});
+  await wait("return [...document.querySelectorAll('menuitem')].some(n=>n.getAttribute('label')==='双语轻译：翻译此图片'&&n.getBoundingClientRect().width>0)");
+  const menu=await command('POST',`/session/${session}/element`,{using:'css selector',value:'menuitem[label="双语轻译：翻译此图片"]'});
+  await command('POST',`/session/${session}/element/${menu['element-6066-11e4-a52e-4f735466cecf']}/click`,{});
+  await command('POST',`/session/${session}/moz/context`,{context:'content'});
+  await wait("return !!document.querySelector('[data-bl-owned=image-overlay]')");assert.equal(imageRequests,imageCount+1);
+  console.log('PASS Firefox native image context menu: menu present and command routes to the clicked image.');
+  await checkBatch({run,wait,press:async expression=>{const p=await controlPoint(expression);await pointer([moveTo(p.x,p.y),{type:'pointerDown',button:0},{type:'pointerUp',button:0}]);},calls:()=>imageRequests});
+  await writeFile('evidence/page-images-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
   console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, CORS image, bubbles, toggle, real pointer snip drag and precise crop overlay; ${textRequests} text + ${imageRequests} full + ${snippetRequests} snip mock requests.`);
 }catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads,pixiv:pixiv.requests});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await pixiv.close();await new Promise(r=>server.close(r));}

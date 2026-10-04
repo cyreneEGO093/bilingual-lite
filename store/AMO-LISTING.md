@@ -15,7 +15,7 @@
 双语轻译是一款轻量网页与漫画翻译扩展。无需安装本地 OCR 或 Python，使用您自己配置的 OpenAI 兼容 API 服务。
 
 - 网页阅读：滚动到可见段落时翻译，也可分批翻译当前已加载的整页内容。可切换双语或仅译文；异常批次保留原文，支持单独重试。
-- 图片与漫画：桌面悬停、手机长按图片后打开工具栏，再选择全文翻译或手动框选。译文覆盖层可移动、缩放，背景透明度和默认大小可调整。
+- 图片与漫画：桌面支持右键翻译单张图片、一键分批翻译整页已加载图片，并可停止后续任务。桌面悬停、手机长按图片打开整图／框选工具。译文覆盖层可移动、缩放，背景透明度和默认大小可调整；手机通过“校准位置”显示框外调整工具，阅读时隐藏手柄。
 - 浮动工具可拖动和收起，尽量避开输入区；触屏默认显示小圆形入口，输入时自动收起并适应软键盘。
 - 专有名词：填写作品背景和自定义术语，帮助保持角色、技能和职业译名一致。
 - 默认文本／图片模型为 DeepSeek 4.1 Flash；可选择其他服务支持的模型。模型识别、翻译和定位可能出错，框选与手动校准可辅助修正。
@@ -28,7 +28,7 @@
 
 项目主页：https://github.com/cyreneEGO093/bilingual-lite
 
-本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.4.0/bilingual-lite-0.4.0-source.zip
+本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.5.0/bilingual-lite-0.5.0-source.zip
 
 ## Other submission fields
 
@@ -36,17 +36,19 @@
 - Platform: desktop Firefox and Firefox for Android; verify Android compatibility derived from the manifest's `gecko_android` declaration.
 - Icon: `assets/icon-512.png` or `public/icons/128.png` (upload separately).
 - Privacy policy: copy the complete `PRIVACY.md` text into AMO's privacy-policy field.
-- Source attachment: `bilingual-lite-0.4.0-source.zip`; build/review instructions: `BUILDING.md`.
+- Source attachment: `bilingual-lite-0.5.0-source.zip`; build/review instructions: `BUILDING.md`.
 - Homepage: https://github.com/cyreneEGO093/bilingual-lite
 - Support: https://github.com/cyreneEGO093/bilingual-lite/issues (no response or maintenance commitment).
 - Payment disclosure: API service may require a paid account; the extension is free.
 
-## Reviewer notes for 0.4.0
+## Reviewer notes for 0.5.0
 
-This updates the existing add-on and retains its approved Gecko ID. Version 0.4.0 adds Firefox for Android support: guards for unavailable commands/contextMenus APIs, responsive settings, long-press image tools and larger touch handles. Floating text controls can be moved/collapsed, avoid page inputs and nearby controls, and track the visual viewport when the software keyboard appears. Touch screens start with a compact launcher; focusing a page editor collapses the panel. Long press only shows image tools; translation still requires an explicit button tap. Please enable Android compatibility for this version. No new permissions, dependencies, API behavior or data collection are introduced.
+This updates the existing add-on and retains its approved Gecko ID and Android compatibility. Version 0.5.0 adds a desktop button to translate eligible, already-loaded page images sequentially (including offscreen images), with progress and a stop control. It also improves the native image context-menu action. Starting a batch is explicit; it does not scroll, navigate or load gallery pages. Stopping prevents subsequent requests but does not cancel an in-flight request. Repeated images can reuse up to 50 image results in page memory; page reset/settings changes clear this cache. This can increase API usage; the privacy policy now describes batch processing. No new permissions, dependencies, telemetry or executable remote code are introduced.
 
-The matching source attachment is `bilingual-lite-0.4.0-source.zip`. Build with Node.js 24 and npm 11: extract into an empty directory, run `npm ci`, `npm test`, `npm run build`, `npm run lint:firefox`, then `npm run zip`. The Firefox output is `dist/firefox-mv3/` and `dist/bilingual-lite-0.4.0-firefox.zip`. Compare extracted file contents, as ZIP timestamps may differ. Detailed instructions and an account-free local review server are in `BUILDING.md`.
+On mobile, the compact launcher no longer avoids ordinary scrolling links/cards; it retains input/fixed-control avoidance and visual-viewport bounds. Bubble handles are hidden during reading. In calibration mode, tapping a bubble selects it and separate Move/Resize/Done controls appear outside its text. Please retain Android compatibility. Physical-device behavior remains unverified.
 
-Validation: 95 automated tests, desktop Chrome 153 / Firefox 155 interaction tests, and Firefox Android 157 on an Android 14 emulator. Native Android input tests cover the soft keyboard, long press, cropping, moving/resizing bubbles, landscape and page input/send access. Physical phones have not been tested. Firefox lint reports zero errors, warnings or notices. All fixtures use local mock responses; no API credentials are included. BUILDING.md documents the optional Android test environment and runner.
+The matching source attachment is `bilingual-lite-0.5.0-source.zip`. Build with Node.js 24 and npm 11: extract into an empty directory, run `npm ci`, `npm test`, `npm run build`, `npm run lint:firefox`, then `npm run zip`. The Firefox output is `dist/firefox-mv3/` and `dist/bilingual-lite-0.5.0-firefox.zip`. Compare extracted file contents, as ZIP timestamps may differ. Detailed instructions and an account-free local review server are in `BUILDING.md`.
+
+Validation: 102 automated tests, desktop Chrome 153 / Firefox 155 interaction tests (including page-image batches and a native Firefox context-menu click), and Firefox Android 157 on an Android 14 emulator. Android tests cover scrolling feed stability, tiny-bubble external controls, the soft keyboard, long press, cropping, moving/resizing bubbles, landscape and page input/send access. Firefox lint reports zero errors, warnings or notices. All fixtures use local mock responses; no API credentials are included. BUILDING.md documents the optional Android test environment and runner.
 
 This file is not part of the installable extension ZIP.

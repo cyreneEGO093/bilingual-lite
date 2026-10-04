@@ -59,6 +59,7 @@ it('renders normalized bubbles safely and restores parent positioning',()=>{
   vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});vi.stubGlobal('requestAnimationFrame',()=>1);vi.stubGlobal('cancelAnimationFrame',()=>{});
   document.body.innerHTML='<div style="position:static"><img src="test.png"></div>';const img=document.querySelector('img')!;
   Object.defineProperty(img,'clientWidth',{value:800});Object.defineProperty(img,'clientHeight',{value:500});
+  vi.stubGlobal('matchMedia',()=>({matches:false}));
   const overlay=new ImageOverlay(img,validateBubbles([{...bubble,translated:'<img onerror=evil()>你好'}]));
   const node=overlay.host.shadowRoot!.querySelector<HTMLElement>('.bubble')!;
   expect(node.style.left).toBe('9%');expect(node.style.top).toBe('10%');expect(node.querySelector('img')).toBeNull();expect(node.textContent).toContain('<img');

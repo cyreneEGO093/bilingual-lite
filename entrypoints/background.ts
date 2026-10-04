@@ -2,7 +2,7 @@
 import { browser } from 'wxt/browser';
 import { getSettings } from '../lib/settings';
 import { OutputFormatError } from '../lib/translation-error';
-import { listModels } from '../lib/api';
+import { ApiError, listModels } from '../lib/api';
 import { translateText, clearTextCache } from '../lib/text-api';
 import { translateImage, translateSnippet } from '../lib/image-api';
 import { prepareRemoteImage } from '../lib/image-download';
@@ -13,7 +13,9 @@ import { getTranslationProfile } from '../lib/profile-preferences';
 export default defineBackground(() => {
   // Chromium can prevent content scripts from reading local storage directly.
   browser.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
-  browser.runtime.onInstalled.addListener(()=>{browser.contextMenus?.removeAll().then(()=>browser.contextMenus.create({id:'translate-image',title:'翻译图片 / 漫画',contexts:['image']})).catch(()=>{});});
+  const installMenus=()=>{if(!browser.contextMenus)return;void browser.contextMenus.removeAll().then(()=>browser.contextMenus.create({id:'translate-image',title:'双语轻译：翻译此图片',contexts:['image'],documentUrlPatterns:['http://*/*','https://*/*']})).catch(()=>{});};
+  browser.runtime.onInstalled.addListener(installMenus);
+  browser.runtime.onStartup.addListener(installMenus);
   browser.contextMenus?.onClicked.addListener((info,tab)=>{if(info.menuItemId==='translate-image'&&tab?.id)void browser.tabs.sendMessage(tab.id,{type:'contextImage',url:info.srcUrl},{frameId:info.frameId??0}).catch(()=>{});});
   // Firefox for Android has no keyboard commands API. Do not stop background initialization.
   browser.commands?.onCommand.addListener(async command => {
@@ -48,7 +50,7 @@ export default defineBackground(() => {
       if (message?.type === 'translateImage' && sender.tab) return translateImage(await getSettings(),message.dataUrl,await getTranslationProfile());
       if (message?.type === 'translateSnippet' && sender.tab) return translateSnippet(await getSettings(),message.dataUrl,await getTranslationProfile());
       throw new Error('未知请求。');
-    })().then(data => respond({ ok: true, data }), error => respond({ ok: false, error: error instanceof Error ? error.message : '操作失败。', ...(error instanceof OutputFormatError?{code:error.code}:{}) }));
+    })().then(data => respond({ ok: true, data }), error => respond({ ok: false, error: error instanceof Error ? error.message : '操作失败。', ...(error instanceof ApiError?{status:error.status}:{}), ...(error instanceof OutputFormatError?{code:error.code}:{}) }));
     return true;
   });
 });

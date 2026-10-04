@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-export const mobileBubbles=[{original:'Top test',translated:'顶部测试译文',bbox:[20,570,180,950]},{original:'Second test',translated:'第二个测试对白',bbox:[480,100,640,460]}];
+export const mobileBubbles=[{original:'Top test',translated:'顶部测试译文',bbox:[20,800,65,940]},{original:'Second test',translated:'第二个测试对白',bbox:[480,100,640,460]}];
 export function serveMobileFixture(req,res){
+  if(req.url==='/mobile-feed'){
+    res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:8px}a{display:block;height:380px;margin-bottom:30px;background:#d4e5da;color:#214333}button{float:right;width:48px;height:48px}</style>'+Array.from({length:15},(_,i)=>`<a href="#card-${i}">SYNTHETIC FEED CARD ${i}<button>Like</button></a>`).join(''));return true;
+  }
   if(req.url==='/mobile'){
     res.setHeader('Content-Type','text/html; charset=utf-8');
     res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Mobile controls test</title>
@@ -13,6 +16,21 @@ export function serveMobileFixture(req,res){
     res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Touch image test</title><style>body{margin:10px}img{display:block;width:360px;max-width:100%;height:auto}</style><a href="#image-link"><img src="/toolbar.svg" alt="Synthetic touch comic"></a>');return true;
   }
   return false;
+}
+
+export async function checkStableEntry(run,wait){
+  const host="document.querySelector('[data-bl-owned=controls]')";
+  await wait(`return !!${host}&&!${host}.shadowRoot.querySelector('#controls-expand').hidden`);
+  const positions=[];
+  for(const y of [0,250,700,1400,2600,4000,1800,300,0]){
+    await run('window.scrollTo(0,arguments[0])',[y]);
+    await wait(`return Math.abs(scrollY-${y})<2`);
+    // Allow two animation frames so the old avoidance algorithm would have moved.
+    await new Promise(r=>setTimeout(r,80));
+    positions.push(await run(`const r=${host}.getBoundingClientRect();return {x:r.left-visualViewport.offsetLeft,y:r.top-visualViewport.offsetTop}`));
+  }
+  for(const axis of ['x','y']){const values=positions.map(p=>p[axis]);if(Math.max(...values)-Math.min(...values)>2)throw new Error('Compact entry jumps during feed scrolling: '+JSON.stringify(positions));}
+  console.log('PASS compact touch entry: stable across large feed scrolls in both directions.');
 }
 
 export async function checkComposer({run,wait,press,drag,touch=false,onInputFocus=async()=>{}}){

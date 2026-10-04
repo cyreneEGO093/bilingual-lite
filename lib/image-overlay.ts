@@ -2,6 +2,7 @@
 import type { Bubble } from './image-api';
 import { contentBox, type ImageTarget } from './image-capture';
 import { DEFAULT_OVERLAY_STYLE, validateOverlayStyle, scaledBox, moveBox, resizeBox, type OverlayStyle, type BubbleBox } from './overlay-style';
+import { BubbleTools } from './bubble-tools';
 const parents=new Map<HTMLElement,{count:number;original:string}>();
 export class ImageOverlay {
   readonly host:HTMLDivElement;
@@ -17,7 +18,10 @@ export class ImageOverlay {
   private style:OverlayStyle;
   private originals=new Map<HTMLElement,{bbox:Bubble['bbox'];manual:boolean}>();
   private cancelDrag?:()=>void;
-  constructor(private target:ImageTarget,bubbles:Bubble[],style:OverlayStyle=DEFAULT_OVERLAY_STYLE,private onLayout:()=>void=()=>{}) {
+  private touch:boolean;
+  private tools?:BubbleTools;
+  constructor(private target:ImageTarget,bubbles:Bubble[],style:OverlayStyle=DEFAULT_OVERLAY_STYLE,private onLayout:()=>void=()=>{},touchMode=matchMedia('(pointer:coarse)').matches) {
+    this.touch=touchMode;
     this.style=validateOverlayStyle(style);
     this.parent=(target.parentElement?.tagName==='PICTURE'?target.parentElement.parentElement:target.parentElement)??document.body;
     const record=parents.get(this.parent);
@@ -34,9 +38,10 @@ export class ImageOverlay {
       .resize-handle{bottom:1px;right:1px;cursor:nwse-resize}.resize-handle::after{content:'↘'}
       .bubble:hover .handle,.bubble:focus-within .handle,:host([data-editing]) .handle{opacity:1}
       .bubble:hover{outline:1px solid #245d4880}:host([data-editing]) .bubble{outline:2px dashed #245d48;cursor:move;touch-action:none;user-select:none}
-      .handle:focus-visible{outline:2px solid #f7b846;outline-offset:-2px}@media(pointer:coarse){.handle{opacity:1;width:32px;height:32px;font-size:22px;line-height:28px}}
+      .handle:focus-visible{outline:2px solid #f7b846;outline-offset:-2px}:host([data-touch]) .handle{display:none!important}:host([data-touch]) .bubble[data-selected]{outline:2px dashed #245d48}
       </style>`;
     this.host.style.setProperty('--bl-opacity',String(1-this.style.transparency/100));
+    this.host.toggleAttribute('data-touch',this.touch);
     this.parent.append(this.host);this.observer=new ResizeObserver(()=>this.update());this.observer.observe(target);this.observer.observe(this.parent);
     this.add(bubbles);this.tick();
   }
@@ -50,8 +55,8 @@ export class ImageOverlay {
       for(const action of ['move','resize'] as const){const handle=document.createElement('button');handle.type='button';handle.className=`handle ${action}-handle`;handle.dataset.action=action;handle.title=action==='move'?'拖动移动；方向键微调':'拖动调整大小；方向键微调';handle.setAttribute('aria-label',action==='move'?'移动译文框':'调整译文框大小');node.append(handle);
         handle.addEventListener('keydown',event=>{const directions:Record<string,[number,number]>={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};const d=directions[event.key];if(!d)return;const bounds=this.host.getBoundingClientRect();if(!bounds.width||!bounds.height)return;event.preventDefault();event.stopPropagation();const step=event.shiftKey?10:1;this.changeBox(node,(action==='resize'?resizeBox:moveBox)(this.readBox(node),d[0]*step/bounds.width*100,d[1]*step/bounds.height*100));});
       }
-      node.addEventListener('pointerdown',event=>this.beginDrag(node,event));
-      node.addEventListener('click',event=>{event.stopPropagation();event.preventDefault();});
+      node.addEventListener('pointerdown',event=>{if(event.pointerType==='touch'){this.touch=true;this.host.setAttribute('data-touch','');}if(this.touch&&this.editing)this.touchTools().show(node);this.beginDrag(node,event);});
+      node.addEventListener('click',event=>{event.stopPropagation();event.preventDefault();if(this.touch&&this.editing)this.touchTools().show(node);});
     }
     this.geometry='';this.update();
   }
@@ -71,6 +76,7 @@ export class ImageOverlay {
   setStyle(style:OverlayStyle){this.cancelDrag?.();this.style=validateOverlayStyle(style);this.host.style.setProperty('--bl-opacity',String(1-this.style.transparency/100));for(const [node,original] of this.originals)if(!original.manual)this.writeBox(node,scaledBox(original.bbox,this.style.size));this.geometry='';this.update();}
   resetLayout(){this.cancelDrag?.();for(const [node,original] of this.originals){original.manual=false;this.writeBox(node,scaledBox(original.bbox,this.style.size));}this.geometry='';this.update();}
   private source(){return this.target instanceof HTMLImageElement?this.target.currentSrc||this.target.src:`${this.target.width}x${this.target.height}`;}
+  private touchTools(){return this.tools??=new BubbleTools((node,event)=>this.beginDrag(node,event),()=>{if(this.editing)this.edit();},this.onLayout);}
   private tick=()=>{if(this.disposed)return;if(!this.target.isConnected){this.destroy();return;}this.update();this.frame=requestAnimationFrame(this.tick);};
   private update() {
     const {w,h,pl,pt}=contentBox(this.target);
@@ -86,11 +92,11 @@ export class ImageOverlay {
       const words=node.querySelector<HTMLElement>('.words')!;
       while(size>10&&(words.scrollHeight>words.clientHeight+1||words.scrollWidth>words.clientWidth+1)){size=Math.max(10,size-1);node.style.setProperty('--bl-font',`${size}px`);}
     }
-    this.onLayout();
+    this.tools?.position();this.onLayout();
   }
   bubbleRects(){return this.host.hidden||!this.host.isConnected?[]:Array.from(this.root.querySelectorAll<HTMLElement>('.bubble'),node=>node.getBoundingClientRect());}
-  handleRects(){return this.host.hidden||!this.host.isConnected?[]:Array.from(this.root.querySelectorAll<HTMLElement>('.handle'),node=>node.getBoundingClientRect());}
-  toggle(){this.host.hidden=!this.host.hidden;}
-  edit(){this.cancelDrag?.();this.editing=!this.editing;this.host.hidden=false;this.host.toggleAttribute('data-editing',this.editing);return this.editing;}
-  destroy(){if(this.disposed)return;this.disposed=true;this.cancelDrag?.();cancelAnimationFrame(this.frame);this.observer.disconnect();this.originals.clear();this.host.remove();const record=parents.get(this.parent);if(record&&!--record.count){if(this.parent.style.position==='relative')this.parent.style.position=record.original;parents.delete(this.parent);}}
+  handleRects(){return this.host.hidden||!this.host.isConnected?[]:[...Array.from(this.root.querySelectorAll<HTMLElement>('.handle'),node=>node.getBoundingClientRect()).filter(r=>r.width&&r.height),...(this.tools?.rects()??[])];}
+  toggle(){this.host.hidden=!this.host.hidden;if(this.host.hidden){this.editing=false;this.host.removeAttribute('data-editing');this.tools?.show();}else this.tools?.position();}
+  edit(){this.cancelDrag?.();this.editing=!this.editing;this.host.hidden=false;this.host.toggleAttribute('data-editing',this.editing);if(this.touch){const node=this.editing?Array.from(this.root.querySelectorAll<HTMLElement>('.bubble')).find(n=>{const r=n.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight;}):undefined;this.touchTools().show(node);}this.onLayout();return this.editing;}
+  destroy(){if(this.disposed)return;this.disposed=true;this.cancelDrag?.();cancelAnimationFrame(this.frame);this.observer.disconnect();this.originals.clear();this.tools?.destroy();this.host.remove();const record=parents.get(this.parent);if(record&&!--record.count){if(this.parent.style.position==='relative')this.parent.style.position=record.original;parents.delete(this.parent);}}
 }

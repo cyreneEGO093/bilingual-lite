@@ -7,7 +7,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import net from 'node:net';
 import { serveToolbarFixture } from './image-toolbar-scenario.mjs';
-import { serveMobileFixture, mobileBubbles, checkComposer } from './mobile-fixtures.mjs';
+import { serveMobileFixture, mobileBubbles, checkComposer, checkStableEntry } from './mobile-fixtures.mjs';
 
 const adb=process.env.ADB_BIN,serial=process.env.TEST_ANDROID_DEVICE;
 if(!adb||!serial)throw new Error('Set ADB_BIN and TEST_ANDROID_DEVICE to an isolated test emulator/device.');
@@ -86,6 +86,9 @@ try{
     adbRun('shell','input','keyevent','4');await wait(`return visualViewport.height>=${height}-10`);
   }});
   await shot('android-text');
+  await go(`${base}/mobile-feed`);await checkStableEntry(run,wait);
+  await swipe({x:100,y:420},0,-280,180);await swipe({x:100,y:400},0,-260,180);
+  await shot('android-feed');
   await go(`${base}/mobile-manga`);
   await wait("return document.querySelector('img').naturalWidth>0&&!!document.querySelector('[data-bl-owned=image-button]')");
   await swipe({x:80,y:180},0,0,650);
@@ -96,11 +99,20 @@ try{
   const overlay="document.querySelector('[data-bl-owned=image-overlay]').shadowRoot";
   await wait(`return document.querySelector('[data-bl-owned=image-overlay]')&&${overlay}.querySelectorAll('.bubble').length===2`);
   const box=()=>run(`const r=${overlay}.querySelector('.bubble').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}`);
-  const before=await box();await drag(`${overlay}.querySelector('.move-handle')`,-20,20);
+  assert.ok(await run(`return [...${overlay}.querySelectorAll('.handle')].every(n=>getComputedStyle(n).display==='none')`),'reading mode must not cover words with handles');
+  await press(`${bar}.querySelector('#adjust')`);
+  const tools="document.querySelector('[data-bl-owned=bubble-tools]').shadowRoot";
+  await wait(`return !!document.querySelector('[data-bl-owned=bubble-tools]')&&${tools}.querySelector('.move-handle').getBoundingClientRect().width>=44`);
+  const clearTools=`const a=${overlay}.querySelector('.bubble').getBoundingClientRect(),b=document.querySelector('[data-bl-owned=bubble-tools]').getBoundingClientRect();return b.right<=a.left||b.left>=a.right||b.bottom<=a.top||b.top>=a.bottom`;
+  await wait(clearTools);
+  const before=await box();await drag(`${tools}.querySelector('.move-handle')`,-20,20);
   // Native input returns before Gecko necessarily paints its last pointer move.
   await wait(`const r=${overlay}.querySelector('.bubble').getBoundingClientRect();return Math.abs(r.x-${before.x}+20)<3&&Math.abs(r.y-${before.y}-20)<3`);
-  const moved=await box();await drag(`${overlay}.querySelector('.resize-handle')`,8,8);
+  const moved=await box();await drag(`${tools}.querySelector('.resize-handle')`,8,8);
   await wait(`const r=${overlay}.querySelector('.bubble').getBoundingClientRect();return Math.abs(r.width-${moved.width}-8)<3&&Math.abs(r.height-${moved.height}-8)<3`);
+  await wait(clearTools);await shot('android-bubble-tools');
+  await press(`${tools}.querySelector('#done')`);
+  await wait("return getComputedStyle(document.querySelector('[data-bl-owned=bubble-tools]')).display==='none'");
   await press(`${bar}.querySelector('#snip')`);await wait("return !!document.querySelector('[data-bl-owned=snip]')");
   const crop=await run("const r=document.querySelector('img').getBoundingClientRect();return {x:r.x+r.width*.2,y:r.y+r.height*.35,dx:r.width*.35,dy:r.height*.15}");
   await swipe(crop,crop.dx,crop.dy,500);

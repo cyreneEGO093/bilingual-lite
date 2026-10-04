@@ -15,33 +15,38 @@ export function createFloatingControls(){
     #text-toggle,#controls-expand{background:#245d48;color:white;border-color:#245d48}
     .small{min-width:36px;padding:6px;font-size:12px}#controls-move,#controls-expand{touch-action:none;user-select:none}#controls-move{cursor:move}
     #controls-expand{display:block;margin-left:auto;width:48px;height:48px;padding:0;border-radius:50%;box-shadow:0 3px 16px #0003;font-size:20px}
-    p{font:13px/1.5 system-ui;width:max-content;max-width:min(280px,100%);margin:0 0 8px auto;overflow-wrap:anywhere;background:#fff;color:#243c32;border-radius:10px;padding:10px;box-shadow:0 2px 16px #0002}p:empty{display:none}
-    @media(pointer:coarse){button,select{min-height:44px;font-size:16px}.small{min-width:44px}}
+    p{position:absolute;bottom:100%;right:0;pointer-events:none;font:13px/1.5 system-ui;width:max-content;max-width:min(280px,calc(100vw - 24px));margin:0 0 8px;overflow-wrap:anywhere;background:#fff;color:#243c32;border-radius:10px;padding:10px;box-shadow:0 2px 16px #0002}p:empty{display:none}
+    @media(pointer:coarse),(max-width:600px){button,select{min-height:44px;font-size:16px}.small{min-width:44px}#images-page{display:none}}
   </style><p role="status" aria-live="polite"></p><div class="panel" id="controls-panel"><div class="row">
     <select id="text-scope" aria-label="网页翻译范围"><option value="viewport">滚动翻译</option><option value="page">整页翻译</option></select>
     <button id="text-toggle" title="Alt+Shift+T">译 · 开启翻译</button><button id="text-mode" hidden>仅看译文</button><button id="text-retry" hidden>重试未完成</button>
+    <button id="images-page" title="逐张翻译当前已加载的图片，可能增加 API 用量；再次点击停止">翻译整页图片</button>
     <button id="controls-move" class="small" title="拖动移动；方向键微调" aria-label="移动翻译工具">⠿</button><button id="controls-collapse" class="small" aria-label="收起翻译工具">收起</button>
   </div></div><button id="controls-expand" hidden aria-label="展开翻译工具" aria-controls="controls-panel" aria-expanded="false" title="点击展开；拖动移动">译</button>`;
   document.documentElement.append(host);
   const button=root.querySelector<HTMLButtonElement>('#text-toggle')!,status=root.querySelector('p')!,panel=root.querySelector<HTMLElement>('.panel')!;
   const mode=root.querySelector<HTMLButtonElement>('#text-mode')!,retry=root.querySelector<HTMLButtonElement>('#text-retry')!,scopeSelect=root.querySelector<HTMLSelectElement>('#text-scope')!;
   const launcher=root.querySelector<HTMLButtonElement>('#controls-expand')!,handle=root.querySelector<HTMLButtonElement>('#controls-move')!;
+  const imagesButton=root.querySelector<HTMLButtonElement>('#images-page')!;
+  const touch=matchMedia('(pointer:coarse)').matches||innerWidth<=600;
+  let compactPoint:Point|undefined,compactWidth=0;
   let expanded=!(matchMedia('(pointer:coarse)').matches||innerWidth<=600),anchor:{x:number;y:number}|undefined,frame=0,disposed=false,dragging=false,ignoreClickUntil=0;
   let statusTimer:ReturnType<typeof setTimeout>|undefined,cancelDrag:(()=>void)|undefined;
-  const setExpanded=(value:boolean)=>{expanded=value;panel.hidden=!value;launcher.hidden=value;launcher.setAttribute('aria-expanded',String(value));position();};
+  const setExpanded=(value:boolean)=>{expanded=value;compactPoint=undefined;panel.hidden=!value;launcher.hidden=value;launcher.setAttribute('aria-expanded',String(value));position();};
   function collect(view:Rect,point:Point,width:number,height:number){
     const nodes=new Set<Element>();
     const add=(el:Element)=>{if(!owned(el))nodes.add(el);};
     // Read only geometry. Input values and page text are never inspected here.
     for(const input of Array.from(document.querySelectorAll(EDITABLE)).slice(0,100)){
       if(owned(input))continue;
+      if(touch&&!expanded&&input!==document.activeElement){let fixed=false;for(let p:Element|null=input;p;p=p.parentElement){if(['fixed','sticky'].includes(getComputedStyle(p).position)){fixed=true;break;}}if(!fixed)continue;}
       const r=input.getBoundingClientRect();if(!r.width||!r.height||r.bottom<=view.top||r.top>=view.top+view.height)continue;
       add(input);const form=input.closest('form');if(form&&form.getBoundingClientRect().height<view.height*.45)add(form);
     }
     for(const dx of [.1,.5,.9])for(const dy of [.1,.5,.9]){
       for(const el of document.elementsFromPoint(point.left+width*dx,point.top+height*dy)){
         if(owned(el))continue;
-        if(el.matches('button,a[href],select,[role=button]'))add(el);
+        if(!(touch&&!expanded)&&el.matches('button,a[href],select,[role=button]'))add(el);
         let parent:Element|null=el;
         for(let i=0;parent&&i<6;i++,parent=parent.parentElement){const css=getComputedStyle(parent),r=parent.getBoundingClientRect();if((css.position==='fixed'||css.position==='sticky')&&r.height<view.height*.45){add(parent);break;}}
       }
@@ -52,13 +57,15 @@ export function createFloatingControls(){
     frame=0;if(disposed||dragging)return;const view=visibleViewport();
     host.style.maxWidth=`${Math.max(48,Math.min(440,view.width-24))}px`;panel.style.maxHeight=`${Math.max(44,view.height-48)}px`;
     const size={width:host.offsetWidth,height:host.offsetHeight};
-    const preferred=anchor?{left:view.left+12+anchor.x*Math.max(0,view.width-size.width-24),top:view.top+12+anchor.y*Math.max(0,view.height-size.height-24)}:{left:view.left+view.width-size.width-20,top:expanded?view.top+view.height-size.height-20:view.top+view.height*.6};
+    let preferred=anchor?{left:view.left+12+anchor.x*Math.max(0,view.width-size.width-24),top:view.top+12+anchor.y*Math.max(0,view.height-size.height-24)}:{left:view.left+view.width-size.width-20,top:expanded?view.top+view.height-size.height-20:view.top+view.height*.6};
+    // Keep the compact touch entry anchored while cards and browser chrome scroll past.
+    if(touch&&!expanded){if(Math.abs(compactWidth-view.width)>1){compactPoint=undefined;compactWidth=view.width;}compactPoint??={left:preferred.left-view.left,top:preferred.top-view.top};preferred={left:view.left+compactPoint.left,top:view.top+compactPoint.top};}
     let p=clampFloating(preferred,size,view);const obstacles:Rect[]=[];
     for(let i=0;i<3;i++){obstacles.push(...collect(view,p,size.width,size.height));p=placeFloating(size,view,preferred,obstacles);}
     host.style.left=`${p.left}px`;host.style.top=`${p.top}px`;
   }
   function schedule(){if(!disposed&&!frame)frame=requestAnimationFrame(position);}
-  function remember(point:Point){const v=visibleViewport();anchor={x:Math.max(0,Math.min(1,(point.left-v.left-12)/Math.max(1,v.width-host.offsetWidth-24))),y:Math.max(0,Math.min(1,(point.top-v.top-12)/Math.max(1,v.height-host.offsetHeight-24)))};}
+  function remember(point:Point){const v=visibleViewport();compactPoint={left:point.left-v.left,top:point.top-v.top};anchor={x:Math.max(0,Math.min(1,(point.left-v.left-12)/Math.max(1,v.width-host.offsetWidth-24))),y:Math.max(0,Math.min(1,(point.top-v.top-12)/Math.max(1,v.height-host.offsetHeight-24)))};}
   function startDrag(event:PointerEvent){
     if(event.button!==0)return;cancelDrag?.();ignoreClickUntil=0;const target=event.currentTarget as HTMLElement,start=host.getBoundingClientRect(),x=event.clientX,y=event.clientY;let moved=false;
     target.setPointerCapture(event.pointerId);
@@ -78,5 +85,5 @@ export function createFloatingControls(){
   const resizeObserver=new ResizeObserver(schedule);resizeObserver.observe(host);
   const mutations=new MutationObserver(records=>{if(records.some(r=>r.target instanceof Element&&!owned(r.target)))schedule();});mutations.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class','hidden']});
   setExpanded(expanded);
-  return {host,root,button,status,mode,retry,scopeSelect,showStatus:(message:string)=>{clearTimeout(statusTimer);status.textContent=message;schedule();statusTimer=setTimeout(()=>{status.textContent='';schedule();},3000);},destroy:()=>{disposed=true;cancelDrag?.();cancelAnimationFrame(frame);clearTimeout(statusTimer);resizeObserver.disconnect();mutations.disconnect();document.removeEventListener('focusin',focus,true);document.removeEventListener('focusout',schedule,true);window.removeEventListener('scroll',schedule,true);window.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('scroll',schedule);host.remove();}};
+  return {host,root,button,status,mode,retry,scopeSelect,imagesButton,showStatus:(message:string)=>{clearTimeout(statusTimer);status.textContent=message;schedule();statusTimer=setTimeout(()=>{status.textContent='';schedule();},3000);},destroy:()=>{disposed=true;cancelDrag?.();cancelAnimationFrame(frame);clearTimeout(statusTimer);resizeObserver.disconnect();mutations.disconnect();document.removeEventListener('focusin',focus,true);document.removeEventListener('focusout',schedule,true);window.removeEventListener('scroll',schedule,true);window.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('scroll',schedule);host.remove();}};
 }
