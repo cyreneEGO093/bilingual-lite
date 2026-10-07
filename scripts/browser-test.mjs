@@ -212,6 +212,42 @@ try {
   await page.goto(`${base}/batch`);
   await checkBatch({run:script=>page.evaluate(s=>new Function(s)(),script),wait:script=>page.waitForFunction(s=>new Function(s)(),script),press:async expression=>{const p=await controlPoint(expression);await page.mouse.click(p.x,p.y);},calls:()=>imageRequests.length});
   await page.screenshot({path:'evidence/page-images-chrome.png'});
+  // Settings changes must reach the existing page without translation requests.
+  await options.locator('summary').filter({hasText:'悬浮工具大小'}).click();
+  const scaleInput=options.locator('#floating-scale');
+  const launcher=page.locator('#controls-expand'),panel=page.locator('#controls-panel');
+  await page.locator('#controls-collapse').click();
+  const originalSize=(await launcher.boundingBox()).width,originalCalls=imageRequests.length;
+  for(const percent of [75,150,100]){
+    await scaleInput.evaluate((n,v)=>{n.value=String(v);n.dispatchEvent(new Event('change',{bubbles:true}));},percent);
+    await page.waitForFunction(v=>getComputedStyle(document.querySelector('[data-bl-owned=controls]')).getPropertyValue('--bl-ui-scale')===String(v/100),percent);
+    assert.ok(Math.abs((await launcher.boundingBox()).width-originalSize*percent/100)<2);
+    await launcher.click();assert.ok((await panel.boundingBox()).x>=0);await page.locator('#controls-collapse').click();
+  }
+  await page.setViewportSize({width:390,height:850});
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('#images-page')).display==='none');
+  await page.setViewportSize({width:1100,height:850});
+  assert.equal(imageRequests.length,originalCalls,'changing UI size does not translate or clear image results');
+  await options.locator('summary').filter({hasText:'自定义翻译提示词'}).click();
+  await options.locator('#prompt-text').fill('TEXT_CUSTOM: use concise {{targetLang}}.');
+  await options.locator('#prompt-image').fill('IMAGE_CUSTOM: read left-to-right.');
+  await options.locator('#prompt-snippet').fill('SNIP_CUSTOM: keep speech natural.');
+  await options.locator('#save-prompts').click();await options.locator('#status').filter({hasText:'提示词已保存'}).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('[data-bl-owned=image-overlay]'));
+  assert.equal(imageRequests.length,originalCalls,'saving prompts invalidates results without inference');
+  toolbarTesting=false;await page.goto(base);await page.locator('#text-toggle').click();await page.locator('.bl-translation').first().waitFor();
+  assert.ok(requests.at(-1).messages[0].content.includes('TEXT_CUSTOM: use concise 简体中文.'));
+  await page.goto(`${base}/manga`);await page.locator('img').hover();await page.locator('#full').click();await page.locator('.bubble').first().waitFor();
+  assert.ok(imageRequests.at(-1).messages[0].content.includes('IMAGE_CUSTOM'));
+  await page.locator('#snip').click();const customBox=await page.locator('img').boundingBox();
+  await page.mouse.move(customBox.x+200,customBox.y+250);await page.mouse.down();await page.mouse.move(customBox.x+380,customBox.y+350,{steps:5});await page.mouse.up();
+  await page.locator('.bubble').filter({hasText:'局部测试译文'}).waitFor();assert.ok(snippetRequests.at(-1).messages[0].content.includes('SNIP_CUSTOM'));
+  await options.reload();await options.locator('summary').filter({hasText:'自定义翻译提示词'}).click();
+  assert.equal(await options.locator('#prompt-image').inputValue(),'IMAGE_CUSTOM: read left-to-right.');
+  await options.screenshot({path:'evidence/custom-prompts.png',fullPage:true});
+  await options.locator('#reset-prompts').click();await options.locator('#status').filter({hasText:'提示词已保存'}).waitFor();
+  assert.ok((await options.locator('#prompt-image').inputValue()).includes('RIGHT TO LEFT'));
+  console.log('PASS customization: 75/150/100% live controls, persistence, prompt cache invalidation, text/image/snippet requests and restore defaults.');
   console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');
   console.log(`PASS image: CORS/hotlink fallback and 403, 1280x800 full image, 400x200 crop, reverse drag, Escape cancellation, exact snip placement, resize, hide/show, cached full; ${imageRequests.length} full + ${snippetRequests.length} snippet mock calls.`);
   console.log(`PASS Chromium MV3: settings, models, 4 visible paragraphs + heading, lazy scroll, dynamic DOM, cleanup, cache, manual bubble move/resize; ${requests.length} text mock calls; paid cost $0.`);

@@ -25,14 +25,15 @@ export async function checkImageToolbar({run,wait,move,click,drag,escape,resize,
   await press('#full');await wait(`return ${overlay}?.shadowRoot.querySelectorAll('.bubble').length===2`);
   const count=calls();
   const clear=async()=>{
-    await wait(`const a=${overlay}.getBoundingClientRect(),b=document.querySelector('img').getBoundingClientRect();return Math.abs(a.width-b.width)<1&&Math.abs(a.height-b.height)<1&&Math.abs(a.left-b.left)<1&&Math.abs(a.top-b.top)<1`);
-    const probe=`const h=${host},r=h.getBoundingClientRect();return {visible:getComputedStyle(h).display!=='none'&&getComputedStyle(h).visibility!=='hidden',inside:r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight,clear:[...${overlay}.shadowRoot.querySelectorAll('.bubble')].every(n=>{const b=n.getBoundingClientRect();return r.right<=b.left||r.left>=b.right||r.bottom<=b.top||r.top>=b.bottom})}`;
-    // scrollTo/resize update layout before the browser dispatches scroll/resize;
-    // wait for the extension's event/ResizeObserver/animation-frame repositioning.
-    await wait(`return Object.values((function(){${probe}})()).every(Boolean)`);
-    const state=await run(probe);
-    assert.deepEqual(state,{visible:true,inside:true,clear:true},'toolbar must stay visible without covering bubbles');
+    await wait(`const r=${host}.getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight`);
   };
+  // Move the toolbar manually away from top-edge text; it must not auto-avoid.
+  const grip=await control('#move-toolbar');await drag(grip.x,grip.y,-200,240);
+  const fixed=await run(`const r=${host}.getBoundingClientRect();return {x:r.x,y:r.y}`);
+  await run(`const b=${overlay}.shadowRoot.querySelector('.bubble');b.style.left='0%';b.style.width='100%';b.style.height='25%';`);
+  await new Promise(r=>setTimeout(r,150));
+  assert.deepEqual(await run(`const r=${host}.getBoundingClientRect();return {x:r.x,y:r.y}`),fixed,'image toolbar does not avoid a changed bubble');
+  await press('#reset-layout');
   const box=async index=>run(`const r=${overlay}.shadowRoot.querySelectorAll('.bubble')[arguments[0]].getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}`,[index]);
   const adjust=async(index,kind,dx,dy)=>{
     const before=await box(index);
@@ -51,15 +52,17 @@ export async function checkImageToolbar({run,wait,move,click,drag,escape,resize,
   await press('#snip');await wait("return !!document.querySelector('[data-bl-owned=snip]')");
   await escape();assert.equal(await run("return !!document.querySelector('[data-bl-owned=snip]')"),false);
   assert.ok((await control('#snip')).width>0,'Escape cancels selection without also collapsing the toolbar');
+  await press('#snip');await wait("return !!document.querySelector('[data-bl-owned=snip]')");
+  const cancel=await run("const r=document.querySelector('[data-bl-owned=snip]').shadowRoot.querySelector('button').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}");
+  await click(cancel.x,cancel.y);await wait("return !document.querySelector('[data-bl-owned=snip]')");
   await run('window.scrollTo(0,650)');await wait('return scrollY===650');await clear();await adjust(1,'move',30,20);
   await run('window.scrollTo(0,0)');await resize(420,800);
   await wait(`const r=${host}.getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight`);
   await clear();await adjust(0,'move',-15,15);
   await resize(1100,900);await run("document.querySelector('#frame').style.paddingTop='80px'");
-  await wait(`return ${host}.getBoundingClientRect().bottom<document.querySelector('img').getBoundingClientRect().top`);
   await clear();
   // Cross the gap from the image to the toolbar using real pointer movement.
   await move(24,300);await press('#collapse');await press('#expand');await clear();
   assert.equal(calls(),count,'layout, dragging, collapsing and cancellation must not call the model');
-  console.log('PASS image toolbar: top-edge move/resize, scrolled long image, narrow viewport, outside-image toolbar, collapse/expand, Escape and selection cancellation; real pointer hit testing in both browsers.');
+  console.log('PASS image toolbar: manual toolbar drag without auto avoidance, bubble move/resize, scroll, narrow viewport, collapse/expand, Escape and selection cancellation; real pointer hit testing in both browsers.');
 }

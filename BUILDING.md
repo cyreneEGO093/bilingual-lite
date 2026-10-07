@@ -1,6 +1,6 @@
 # Reproducible build / AMO source instructions
 
-Release: 0.5.0. License: GPL-3.0-only, with unmodified MIT runtime components.
+Release: 0.6.0. License: GPL-3.0-only, with unmodified MIT runtime components.
 
 ## Environment and commands
 
@@ -18,7 +18,7 @@ npm run zip
 
 `npm ci` downloads public packages from the official npm registry using `package-lock.json`. The WXT postinstall prepares local types. The optional esbuild native helper is a build tool, not extension runtime code. Do not run `npm update` or replace the lockfile when reproducing this release.
 
-Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.5.0-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
+Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.6.0-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
 
 PNG icons and legal texts are included in the source archive. `assets/icon.svg` is the original editable artwork. Regenerating PNGs is optional (`node scripts/create-icons.mjs`, with Playwright Chromium installed or `TEST_BROWSER_PATH` set), and is not part of the release build. The build records actually included npm runtime modules under `.wxt/license-audit/`; `npm run audit:licenses` regenerates their notices, module hashes and exact source snapshots. A new runtime dependency fails this audit pending license review.
 
@@ -28,12 +28,14 @@ PNG icons and legal texts are included in the source archive. `assets/icon.svg` 
 2. Load `dist/firefox-mv3/manifest.json` as a temporary extension using `about:debugging#/runtime/this-firefox`.
 3. In extension Options set API Endpoint to `http://127.0.0.1:8787/v1`, clear API Key, leave the default model names, and save.
 4. Open `http://127.0.0.1:8787/`, enable scrolling or whole-page translation, switch bilingual/translated-only, and scroll. The local server returns clearly labelled synthetic translations.
-5. Open `http://127.0.0.1:8787/manga`, hover the image, test full translation, manual crop, clear/restore and move/resize handles. The toolbar avoids bubbles and can be collapsed with its button or Esc (Esc cancels selection first). `/mobile` exercises a fixed chat composer; `/mobile-manga` provides a responsive image for touch testing.
+5. Open `http://127.0.0.1:8787/manga`, hover the image, test full translation, manual crop, clear/restore and move/resize handles. The toolbar can be manually dragged with its grip and collapsed with its button or Esc (Esc cancels selection first). `/mobile` exercises a fixed chat composer; `/mobile-manga` provides a responsive image for touch testing.
 6. Open `/batch` and click “翻译整页图片”. Check overlays on the eligible images, including images below the fold. Hidden/small images are skipped. Repeat without additional API requests; right-click an image and choose “双语轻译：翻译此图片” to test a single image. A running batch can be stopped with the same button.
 7. On Android, scroll `/mobile-feed` in both directions and observe the compact launcher's position. On `/mobile-manga`, translate the image, enter calibration, select a small bubble and drag the separate Move/Resize controls. Done hides them for reading.
 8. Close translation and confirm original content is restored. Ctrl+C stops the fixture server. No API key, account or payment is needed for this local workflow.
 
 These fixtures exercise actual extension networking, rendering and settings, but do not test a third-party model's translation quality. Real inference requires a user's BYOK service account; no credentials are distributed with the source or binary. If reviewers require live-service testing, the publisher must supply any temporary restricted credentials privately through AMO, never inside the public package.
+
+In Options, test “悬浮工具大小” at 75%, 100% and 150% and inspect an already-open page. Under “自定义翻译提示词”, edit the three tasks, save and verify existing translations are cleared without additional requests. New translation requests use the matching task; restore defaults to reset all three. The mock server still returns synthetic text and does not evaluate translation style.
 
 ## Optional Android interaction tests
 
@@ -42,7 +44,7 @@ Building the extension does not require Android tools. The following setup is on
 1. Install Android SDK Platform Tools, the Android Emulator and an Android 14 x86_64 system image from Google's official SDK distribution. Install official Firefox for Android and geckodriver. Use a dedicated test emulator/device without personal data; this test starts Firefox with an isolated temporary profile and changes device orientation.
 2. Start the emulator and confirm it is booted with `adb devices`. Enable ADB debugging. The tested emulator used 720×1280 pixels, density 320, 1536 MB RAM and Android's software keyboard enabled. Do not use a hardware keyboard that suppresses the IME. The test uses Firefox's `automationtest` launch extra to suppress first-run interruptions ([Mozilla implementation](https://bugzilla.mozilla.org/show_bug.cgi?id=2064671)); use Firefox 157 for this workflow. The tested AOSP image supports the runner's internal-storage mode; do not assume a non-root physical device can use this mode.
 3. Set `ADB_BIN` to the absolute adb executable path, `GECKODRIVER_PATH` to geckodriver, and `TEST_ANDROID_DEVICE` to the serial shown by adb (for example `emulator-5554`). No custom proxy or API key is needed. Then run `npm run zip` and `npm run test:android` from the source root. The runner starts geckodriver with internal Android test storage, temporarily installs the Firefox ZIP, and uses `adb reverse` for its loopback mock server.
-4. The test covers responsive settings, background requests, translation modes, movable/collapsible controls, a real Android soft keyboard, feed scrolling, native taps/long press, image selection, tiny bubbles with external move/resize controls, and landscape. Screenshots use synthetic fixtures only. The runner closes its session and removes its port forwarding when finished.
+4. The test covers responsive settings, background requests, translation modes, movable/collapsible controls without automatic avoidance or input-focus collapse, UI scaling, a real Android soft keyboard, feed scrolling, native taps/long press, image selection, tiny bubbles with external move/resize controls, and landscape. Screenshots use synthetic fixtures only. The runner closes its session and removes its port forwarding when finished.
 
 Validated with Windows x64, Android Emulator 37.2.12, Android 14 (API 34), Platform Tools 37.0.1, geckodriver 0.37.1 and Firefox Android 157.0. This is emulator validation, not physical-device or iOS coverage. Test screenshots are under `evidence/android-*.png`.
 
@@ -50,7 +52,7 @@ For manual Android review, forward the review server with `adb -s <serial> rever
 
 ## Submission context
 
-- Minimum desktop Firefox 140 and Android Firefox 142, with built-in consent for `websiteContent` and `authenticationInfo`. Submit 0.5.0 as an update to the existing add-on and verify AMO lists Android compatibility as well as desktop. The manifest already declares `gecko_android`; AMO derives its Android range from that declaration ([Mozilla compatibility guidance](https://extensionworkshop.com/documentation/publish/version-compatibility/)). Tested Android version: 157.0 on Android 14 emulator; lower declared versions and physical phones have not been individually tested.
+- Minimum desktop Firefox 140 and Android Firefox 142, with built-in consent for `websiteContent` and `authenticationInfo`. Submit 0.6.0 as an update to the existing add-on and verify AMO lists Android compatibility as well as desktop. The manifest already declares `gecko_android`; AMO derives its Android range from that declaration ([Mozilla compatibility guidance](https://extensionworkshop.com/documentation/publish/version-compatibility/)). Tested Android version: 157.0 on Android 14 emulator; lower declared versions and physical phones have not been individually tested.
 - Broad HTTP(S) host access supports content scripts, user-configurable HTTPS APIs and cross-origin image downloads. Actual remote API and image-download requests require HTTPS; loopback HTTP is allowed for local services. Page content is sent only when translation is enabled or invoked.
 - Pixiv request header adjustment is limited to extension-initiated HTTPS GET requests to `pximg.net`; it sends only the constant `https://www.pixiv.net/` origin as Referer and no site cookies.
 - No analytics, remote scripts, native messaging, downloaded model execution or image inpainting. Model outputs are validated and inserted as text, never executable HTML.

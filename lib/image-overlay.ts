@@ -19,6 +19,7 @@ export class ImageOverlay {
   private originals=new Map<HTMLElement,{bbox:Bubble['bbox'];manual:boolean}>();
   private cancelDrag?:()=>void;
   private touch:boolean;
+  private uiScale=100;
   private tools?:BubbleTools;
   constructor(private target:ImageTarget,bubbles:Bubble[],style:OverlayStyle=DEFAULT_OVERLAY_STYLE,private onLayout:()=>void=()=>{},touchMode=matchMedia('(pointer:coarse)').matches) {
     this.touch=touchMode;
@@ -76,7 +77,8 @@ export class ImageOverlay {
   setStyle(style:OverlayStyle){this.cancelDrag?.();this.style=validateOverlayStyle(style);this.host.style.setProperty('--bl-opacity',String(1-this.style.transparency/100));for(const [node,original] of this.originals)if(!original.manual)this.writeBox(node,scaledBox(original.bbox,this.style.size));this.geometry='';this.update();}
   resetLayout(){this.cancelDrag?.();for(const [node,original] of this.originals){original.manual=false;this.writeBox(node,scaledBox(original.bbox,this.style.size));}this.geometry='';this.update();}
   private source(){return this.target instanceof HTMLImageElement?this.target.currentSrc||this.target.src:`${this.target.width}x${this.target.height}`;}
-  private touchTools(){return this.tools??=new BubbleTools((node,event)=>this.beginDrag(node,event),()=>{if(this.editing)this.edit();},this.onLayout);}
+  private touchTools(){if(!this.tools){this.tools=new BubbleTools((node,event)=>this.beginDrag(node,event),()=>{if(this.editing)this.edit();},this.onLayout);this.tools.setScale(this.uiScale);}return this.tools;}
+  setUiScale(value:number){this.uiScale=value;this.tools?.setScale(value);}
   private tick=()=>{if(this.disposed)return;if(!this.target.isConnected){this.destroy();return;}this.update();this.frame=requestAnimationFrame(this.tick);};
   private update() {
     const {w,h,pl,pt}=contentBox(this.target);

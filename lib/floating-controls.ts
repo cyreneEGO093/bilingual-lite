@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { clampFloating, placeFloating, visibleViewport, type Point, type Rect } from './floating-layout';
-const EDITABLE='textarea,input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]),[contenteditable]:not([contenteditable=false]),[role=textbox]';
-const owned=(node:Element)=>!!node.closest('[data-bl-owned]');
+import { clampFloating, visibleViewport, type Point } from './floating-layout';
+import { scaleControlCss, setControlScale } from './ui-scale';
 export function createFloatingControls(){
   const host=document.createElement('div');host.dataset.blOwned='controls';
   Object.assign(host.style,{position:'fixed',zIndex:'2147483647',width:'max-content',boxSizing:'border-box',padding:'env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)'});
@@ -23,49 +22,30 @@ export function createFloatingControls(){
     <button id="images-page" title="逐张翻译当前已加载的图片，可能增加 API 用量；再次点击停止">翻译整页图片</button>
     <button id="controls-move" class="small" title="拖动移动；方向键微调" aria-label="移动翻译工具">⠿</button><button id="controls-collapse" class="small" aria-label="收起翻译工具">收起</button>
   </div></div><button id="controls-expand" hidden aria-label="展开翻译工具" aria-controls="controls-panel" aria-expanded="false" title="点击展开；拖动移动">译</button>`;
+  scaleControlCss(root);
   document.documentElement.append(host);
   const button=root.querySelector<HTMLButtonElement>('#text-toggle')!,status=root.querySelector('p')!,panel=root.querySelector<HTMLElement>('.panel')!;
   const mode=root.querySelector<HTMLButtonElement>('#text-mode')!,retry=root.querySelector<HTMLButtonElement>('#text-retry')!,scopeSelect=root.querySelector<HTMLSelectElement>('#text-scope')!;
   const launcher=root.querySelector<HTMLButtonElement>('#controls-expand')!,handle=root.querySelector<HTMLButtonElement>('#controls-move')!;
   const imagesButton=root.querySelector<HTMLButtonElement>('#images-page')!;
-  const touch=matchMedia('(pointer:coarse)').matches||innerWidth<=600;
-  let compactPoint:Point|undefined,compactWidth=0;
+  let scale=1;
+  let screenPoint:Point|undefined,screenWidth=0;
   let expanded=!(matchMedia('(pointer:coarse)').matches||innerWidth<=600),anchor:{x:number;y:number}|undefined,frame=0,disposed=false,dragging=false,ignoreClickUntil=0;
   let statusTimer:ReturnType<typeof setTimeout>|undefined,cancelDrag:(()=>void)|undefined;
-  const setExpanded=(value:boolean)=>{expanded=value;compactPoint=undefined;panel.hidden=!value;launcher.hidden=value;launcher.setAttribute('aria-expanded',String(value));position();};
-  function collect(view:Rect,point:Point,width:number,height:number){
-    const nodes=new Set<Element>();
-    const add=(el:Element)=>{if(!owned(el))nodes.add(el);};
-    // Read only geometry. Input values and page text are never inspected here.
-    for(const input of Array.from(document.querySelectorAll(EDITABLE)).slice(0,100)){
-      if(owned(input))continue;
-      if(touch&&!expanded&&input!==document.activeElement){let fixed=false;for(let p:Element|null=input;p;p=p.parentElement){if(['fixed','sticky'].includes(getComputedStyle(p).position)){fixed=true;break;}}if(!fixed)continue;}
-      const r=input.getBoundingClientRect();if(!r.width||!r.height||r.bottom<=view.top||r.top>=view.top+view.height)continue;
-      add(input);const form=input.closest('form');if(form&&form.getBoundingClientRect().height<view.height*.45)add(form);
-    }
-    for(const dx of [.1,.5,.9])for(const dy of [.1,.5,.9]){
-      for(const el of document.elementsFromPoint(point.left+width*dx,point.top+height*dy)){
-        if(owned(el))continue;
-        if(!(touch&&!expanded)&&el.matches('button,a[href],select,[role=button]'))add(el);
-        let parent:Element|null=el;
-        for(let i=0;parent&&i<6;i++,parent=parent.parentElement){const css=getComputedStyle(parent),r=parent.getBoundingClientRect();if((css.position==='fixed'||css.position==='sticky')&&r.height<view.height*.45){add(parent);break;}}
-      }
-    }
-    return Array.from(nodes,n=>n.getBoundingClientRect()).filter(r=>r.width>0&&r.height>0&&r.bottom>view.top&&r.top<view.top+view.height&&r.right>view.left&&r.left<view.left+view.width);
-  }
+  const setExpanded=(value:boolean)=>{expanded=value;screenPoint=undefined;panel.hidden=!value;launcher.hidden=value;launcher.setAttribute('aria-expanded',String(value));position();};
   function position(){
     frame=0;if(disposed||dragging)return;const view=visibleViewport();
-    host.style.maxWidth=`${Math.max(48,Math.min(440,view.width-24))}px`;panel.style.maxHeight=`${Math.max(44,view.height-48)}px`;
+    host.style.maxWidth=`${Math.max(48*scale,Math.min(440*scale,view.width-24))}px`;panel.style.maxHeight=`${Math.max(44*scale,view.height-24)}px`;
     const size={width:host.offsetWidth,height:host.offsetHeight};
     let preferred=anchor?{left:view.left+12+anchor.x*Math.max(0,view.width-size.width-24),top:view.top+12+anchor.y*Math.max(0,view.height-size.height-24)}:{left:view.left+view.width-size.width-20,top:expanded?view.top+view.height-size.height-20:view.top+view.height*.6};
-    // Keep the compact touch entry anchored while cards and browser chrome scroll past.
-    if(touch&&!expanded){if(Math.abs(compactWidth-view.width)>1){compactPoint=undefined;compactWidth=view.width;}compactPoint??={left:preferred.left-view.left,top:preferred.top-view.top};preferred={left:view.left+compactPoint.left,top:view.top+compactPoint.top};}
-    let p=clampFloating(preferred,size,view);const obstacles:Rect[]=[];
-    for(let i=0;i<3;i++){obstacles.push(...collect(view,p,size.width,size.height));p=placeFloating(size,view,preferred,obstacles);}
+    // Keep both states anchored; only clamp to the visible screen boundary.
+    if(Math.abs(screenWidth-view.width)>1){screenPoint=undefined;screenWidth=view.width;}
+    screenPoint??={left:preferred.left-view.left,top:preferred.top-view.top};preferred={left:view.left+screenPoint.left,top:view.top+screenPoint.top};
+    const p=clampFloating(preferred,size,view);
     host.style.left=`${p.left}px`;host.style.top=`${p.top}px`;
   }
   function schedule(){if(!disposed&&!frame)frame=requestAnimationFrame(position);}
-  function remember(point:Point){const v=visibleViewport();compactPoint={left:point.left-v.left,top:point.top-v.top};anchor={x:Math.max(0,Math.min(1,(point.left-v.left-12)/Math.max(1,v.width-host.offsetWidth-24))),y:Math.max(0,Math.min(1,(point.top-v.top-12)/Math.max(1,v.height-host.offsetHeight-24)))};}
+  function remember(point:Point){const v=visibleViewport();screenPoint={left:point.left-v.left,top:point.top-v.top};anchor={x:Math.max(0,Math.min(1,(point.left-v.left-12)/Math.max(1,v.width-host.offsetWidth-24))),y:Math.max(0,Math.min(1,(point.top-v.top-12)/Math.max(1,v.height-host.offsetHeight-24)))};}
   function startDrag(event:PointerEvent){
     if(event.button!==0)return;cancelDrag?.();ignoreClickUntil=0;const target=event.currentTarget as HTMLElement,start=host.getBoundingClientRect(),x=event.clientX,y=event.clientY;let moved=false;
     target.setPointerCapture(event.pointerId);
@@ -78,12 +58,10 @@ export function createFloatingControls(){
   root.querySelector('#controls-collapse')!.addEventListener('click',()=>{setExpanded(false);launcher.focus({preventScroll:true});});
   handle.addEventListener('keydown',e=>{const d:Record<string,[number,number]>={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]},direction=d[e.key];if(!direction)return;e.preventDefault();const r=host.getBoundingClientRect(),step=e.shiftKey?10:1;remember(clampFloating({left:r.left+direction[0]*step,top:r.top+direction[1]*step},r,visibleViewport()));schedule();});
   root.addEventListener('keydown',e=>{if((e as KeyboardEvent).key==='Escape'){setExpanded(false);launcher.focus({preventScroll:true});}});
-  const focus=(e:Event)=>{const t=e.target;if(t instanceof Element&&!owned(t)&&t.matches(EDITABLE))setExpanded(false);schedule();};
   const resized=()=>{cancelDrag?.();schedule();};
-  document.addEventListener('focusin',focus,true);document.addEventListener('focusout',schedule,true);window.addEventListener('scroll',schedule,true);window.addEventListener('resize',resized);
+  window.addEventListener('scroll',schedule,true);window.addEventListener('resize',resized);
   window.visualViewport?.addEventListener('resize',resized);window.visualViewport?.addEventListener('scroll',schedule);
   const resizeObserver=new ResizeObserver(schedule);resizeObserver.observe(host);
-  const mutations=new MutationObserver(records=>{if(records.some(r=>r.target instanceof Element&&!owned(r.target)))schedule();});mutations.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class','hidden']});
   setExpanded(expanded);
-  return {host,root,button,status,mode,retry,scopeSelect,imagesButton,showStatus:(message:string)=>{clearTimeout(statusTimer);status.textContent=message;schedule();statusTimer=setTimeout(()=>{status.textContent='';schedule();},3000);},destroy:()=>{disposed=true;cancelDrag?.();cancelAnimationFrame(frame);clearTimeout(statusTimer);resizeObserver.disconnect();mutations.disconnect();document.removeEventListener('focusin',focus,true);document.removeEventListener('focusout',schedule,true);window.removeEventListener('scroll',schedule,true);window.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('scroll',schedule);host.remove();}};
+  return {host,root,button,status,mode,retry,scopeSelect,imagesButton,setScale:(percent:number)=>{cancelDrag?.();scale=percent/100;setControlScale(host,percent);position();},showStatus:(message:string)=>{clearTimeout(statusTimer);status.textContent=message;schedule();statusTimer=setTimeout(()=>{status.textContent='';schedule();},3000);},destroy:()=>{disposed=true;cancelDrag?.();cancelAnimationFrame(frame);clearTimeout(statusTimer);resizeObserver.disconnect();window.removeEventListener('scroll',schedule,true);window.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('scroll',schedule);host.remove();}};
 }

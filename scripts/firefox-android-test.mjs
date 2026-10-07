@@ -25,8 +25,8 @@ const server=createServer(async(req,res)=>{
       let result;
       if(Array.isArray(content)){
         assert.equal(body.max_tokens,1500);assert.deepEqual(body.reasoning,{enabled:false});
-        if(content[0].text.includes('框内')){calls.snip++;result={original:'Touch crop',translated:'触摸框选测试译文'};}else{calls.full++;result=mobileBubbles;}
-      }else{calls.text++;result=JSON.parse(content).map(i=>({id:i.id,translated:'手机测试译文：'+i.text}));}
+        if(content[0].text.includes('框内')){assert.ok(body.messages[0].content.includes('ANDROID_SNIP'));calls.snip++;result={original:'Touch crop',translated:'触摸框选测试译文'};}else{assert.ok(body.messages[0].content.includes('ANDROID_IMAGE'));calls.full++;result=mobileBubbles;}
+      }else{assert.ok(body.messages[0].content.includes('ANDROID_TEXT'));calls.text++;result=JSON.parse(content).map(i=>({id:i.id,translated:'手机测试译文：'+i.text}));}
       res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(result)}}]}));return;
     }
     res.statusCode=404;res.end('{}');
@@ -76,13 +76,27 @@ try{
   assert.ok(await run('return document.documentElement.scrollWidth<=innerWidth'),'settings must fit the phone viewport');
   await run("document.querySelector('[name=baseUrl]').value=arguments[0];document.querySelector('[name=apiKey]').value='';document.querySelector('#models').click()",[`${base}/v1`]);
   await wait("return document.querySelector('#status').textContent.includes('连接成功')");
+  await run("document.querySelector('#prompt-text').value='ANDROID_TEXT: use concise {{targetLang}}.';document.querySelector('#prompt-image').value='ANDROID_IMAGE: translate natural speech.';document.querySelector('#prompt-snippet').value='ANDROID_SNIP: keep names.';document.querySelector('#save-prompts').click()");
+  await wait("return document.querySelector('#status').textContent.includes('提示词已保存')");
+  await run("const n=document.querySelector('#floating-scale');n.value='150';n.dispatchEvent(new Event('change',{bubbles:true}))");
+  await wait("return document.querySelector('#status').textContent.includes('悬浮工具大小已保存')");
+  await go(`${base}/mobile-feed`);
+  await wait("const h=document.querySelector('[data-bl-owned=controls]');return h&&Math.abs(h.shadowRoot.querySelector('#controls-expand').getBoundingClientRect().width-72)<1");
+  await press("document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('#controls-expand')");
+  await wait("const r=document.querySelector('[data-bl-owned=controls]').getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight");
+  await shot('android-scaled-controls');
+  await go(`moz-extension://${uuid}/options.html`);
+  await wait("return document.querySelector('#floating-scale')?.disabled===false");
+  assert.equal(await run("return document.querySelector('#floating-scale').value"),'150');
+  await run("document.querySelector('#floating-defaults').click()");
+  await wait("return document.querySelector('#status').textContent.includes('悬浮工具大小已保存')");
   await shot('android-settings');
   await go(`${base}/mobile`);
   const height=await run('return visualViewport.height');
   await checkComposer({run,wait,press,drag,touch:true,onInputFocus:async()=>{
     await wait(`return visualViewport.height<${height}-100`);
     await wait("const r=document.querySelector('[data-bl-owned=controls]').getBoundingClientRect(),v=visualViewport;return r.bottom<=v.offsetTop+v.height&&r.right<=v.offsetLeft+v.width");
-    await shot('android-keyboard');console.log('PASS Android soft keyboard: visual viewport shrinks and the floating launcher remains visible outside the composer.');
+    await shot('android-keyboard');console.log('PASS Android soft keyboard: visual viewport shrinks and the floating launcher remains visible within the visible screen.');
     adbRun('shell','input','keyevent','4');await wait(`return visualViewport.height>=${height}-10`);
   }});
   await shot('android-text');
@@ -95,6 +109,7 @@ try{
   const bar="document.querySelector('[data-bl-owned=image-button]').shadowRoot";
   await wait("return getComputedStyle(document.querySelector('[data-bl-owned=image-button]')).display!=='none'");
   assert.equal(await run('return location.hash'),'','long press must not follow the image link');assert.equal(calls.full,0);
+  await drag(`${bar}.querySelector('#move-toolbar')`,0,200);
   await press(`${bar}.querySelector('#full')`);
   const overlay="document.querySelector('[data-bl-owned=image-overlay]').shadowRoot";
   await wait(`return document.querySelector('[data-bl-owned=image-overlay]')&&${overlay}.querySelectorAll('.bubble').length===2`);

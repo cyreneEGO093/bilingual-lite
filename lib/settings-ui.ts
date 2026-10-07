@@ -4,6 +4,8 @@ import { getSettings, saveSettings, type Settings } from './settings';
 import { getTextScope, saveTextScope } from './text-scope';
 import { mountOverlaySettings } from './overlay-settings-ui';
 import { mountProfileSettings } from './profile-settings-ui';
+import { mountFloatingSettings } from './floating-preferences';
+import { mountPromptSettings } from './prompt-settings-ui';
 import './ui.css';
 export async function mountSettings(popup = false) {
   const app = document.querySelector<HTMLElement>('#app')!;
@@ -11,21 +13,25 @@ export async function mountSettings(popup = false) {
     <button id="toggle" class="primary" type="button">切换当前网页翻译 · Alt+Shift+T</button>
     <label>网页翻译范围（自动保存）<select id="text-scope" disabled><option value="viewport">滚动翻译 · 只翻译可见段落</option><option value="page">整页翻译 · 分批翻译所有段落</option></select></label>
     <p>整页模式处理当前已加载的正文，无需滚动，可能增加用量。</p>
+    <div id="floating-settings"></div>
     <div id="overlay-settings"></div>
     <div id="profile-settings"></div>
+    <div id="prompt-settings"></div>
     <form><label>API Endpoint<input name="baseUrl" type="url" required></label>
     <label>API Key<input name="apiKey" type="password" autocomplete="off" placeholder="仅保存在本机"></label>
     <label>目标语言<select name="targetLang"><option>简体中文</option><option>繁體中文</option><option>English</option><option>日本語</option><option>한국어</option><option>Français</option><option>Deutsch</option><option>Español</option></select></label>
     <label>文本模型<input name="textModel" list="text-models" required></label><datalist id="text-models"></datalist>
     <label>图片 / 漫画模型<input name="visionModel" list="image-models" required></label><datalist id="image-models"></datalist>
     <div class="actions"><button class="primary" type="submit">保存设置</button><button id="models" type="button">连接并查询模型</button></div></form>
-    <p id="status" role="status" aria-live="polite"></p><footer>按所选范围翻译网页；图片需手动点击。内容、作品背景和相关术语会发送至您设置的 API，密钥随请求用于该服务认证。配置保存在本机，不同步。每次调用可能计费。<br><a href="legal/privacy.html" target="_blank" rel="noopener">隐私说明</a> · <a href="legal/LICENSE.txt" target="_blank" rel="noopener">GPL-3.0 · 无担保</a> · <a href="legal/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">第三方许可</a><br>© 2026 Bilingual Lite contributors · 可依 GPL-3.0 修改与再分发。</footer>`;
+    <p id="status" role="status" aria-live="polite"></p><footer>按所选范围翻译网页；图片需手动点击。内容、自定义提示词、作品背景和相关术语会发送至您设置的 API，密钥随请求用于该服务认证。配置保存在本机，不同步。每次调用可能计费。<br><a href="legal/privacy.html" target="_blank" rel="noopener">隐私说明</a> · <a href="legal/LICENSE.txt" target="_blank" rel="noopener">GPL-3.0 · 无担保</a> · <a href="legal/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">第三方许可</a><br>© 2026 Bilingual Lite contributors · 可依 GPL-3.0 修改与再分发。</footer>`;
   if(!popup)app.querySelector('#toggle')!.remove();
   const form = app.querySelector('form')!;
   const status = app.querySelector<HTMLElement>('#status')!;
   const report = (e: unknown) => { status.textContent = e instanceof Error ? e.message : String(e); };
   await mountOverlaySettings(app.querySelector<HTMLElement>('#overlay-settings')!,report);
   await mountProfileSettings(app.querySelector<HTMLElement>('#profile-settings')!,report);
+  await mountFloatingSettings(app.querySelector<HTMLElement>('#floating-settings')!,report);
+  await mountPromptSettings(app.querySelector<HTMLElement>('#prompt-settings')!,report);
   const scopeSelect=app.querySelector<HTMLSelectElement>('#text-scope')!;
   try {scopeSelect.value=await getTextScope();} catch(e){report(e);} finally {scopeSelect.disabled=false;}
   scopeSelect.addEventListener('change',async()=>{

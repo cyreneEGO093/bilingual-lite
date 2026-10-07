@@ -36,18 +36,26 @@ export async function checkStableEntry(run,wait){
 export async function checkComposer({run,wait,press,drag,touch=false,onInputFocus=async()=>{}}){
   const host="document.querySelector('[data-bl-owned=controls]')",root=`${host}.shadowRoot`;
   await wait(`return !!${host}&&${root}.querySelector('#text-scope').disabled===false`);
-  const clear=`const c=${host}.getBoundingClientRect(),e=document.querySelector('#composer').getBoundingClientRect(),v=visualViewport;return c.left>=v.offsetLeft&&c.top>=v.offsetTop&&c.right<=v.offsetLeft+v.width&&c.bottom<=v.offsetTop+v.height&&(c.right<=e.left||c.left>=e.right||c.bottom<=e.top||c.top>=e.bottom)`;
+  const clear=`const c=${host}.getBoundingClientRect(),v=visualViewport;return c.left>=v.offsetLeft&&c.top>=v.offsetTop&&c.right<=v.offsetLeft+v.width&&c.bottom<=v.offsetTop+v.height`;
+  const noAvoid=async()=>{
+    const before=await run(`const r=${host}.getBoundingClientRect();return {x:r.x,y:r.y}`);
+    await run(`const r=${host}.getBoundingClientRect(),block=document.createElement('button');block.id='fixed-obstacle';block.textContent='Page obstacle';Object.assign(block.style,{position:'fixed',pointerEvents:'none',left:r.x+'px',top:r.y+'px',width:r.width+'px',height:r.height+'px'});document.body.append(block);window.dispatchEvent(new Event('scroll'));`);
+    await new Promise(r=>setTimeout(r,200));
+    const after=await run(`const r=${host}.getBoundingClientRect();document.querySelector('#fixed-obstacle').remove();return {x:r.x,y:r.y}`);
+    if(Math.abs(before.x-after.x)>1||Math.abs(before.y-after.y)>1)throw new Error('Automatic avoidance moved the controls');
+  };
+  await noAvoid();
   await wait(clear);
   if(touch){await wait(`return !${root}.querySelector('#controls-expand').hidden`);await press(`${root}.querySelector('#controls-expand')`);}
   await wait(`return !${root}.querySelector('#controls-panel').hidden`);
   await wait(clear);
   const before=await run(`const r=${host}.getBoundingClientRect();return {x:r.x,y:r.y}`);
-  await drag(`${root}.querySelector('#controls-move')`,-70,-65);
+  await noAvoid();await drag(`${root}.querySelector('#controls-move')`,-70,-180);
   await wait(`const r=${host}.getBoundingClientRect();return Math.abs(r.left-${before.x})>15||Math.abs(r.top-${before.y})>15`);
   await wait(clear);
   await press(`${root}.querySelector('#controls-collapse')`);
   await wait(`return !${root}.querySelector('#controls-expand').hidden`);
-  await drag(`${root}.querySelector('#controls-expand')`,-20,-35);
+  await noAvoid();await drag(`${root}.querySelector('#controls-expand')`,-20,-35);
   await wait(`return ${root}.querySelector('#controls-panel').hidden`);
   await press(`${root}.querySelector('#controls-expand')`);
   await press(`${root}.querySelector('#text-toggle')`);
@@ -55,10 +63,11 @@ export async function checkComposer({run,wait,press,drag,touch=false,onInputFocu
   await press(`${root}.querySelector('#text-mode')`);
   await wait(`return ${root}.querySelector('#text-mode').textContent==='显示双语'`);
   await press("document.querySelector('#message')");
-  await wait(`return ${root}.querySelector('#controls-panel').hidden`);
+  await wait(`return !${root}.querySelector('#controls-panel').hidden`);
   await wait(clear);
   await onInputFocus();
+  await press(`${root}.querySelector('#controls-collapse')`);
   await press("document.querySelector('#send')");
   await wait("return document.querySelector('#sent').textContent==='1'");
-  console.log('PASS floating controls: avoid composer/send button, real drag, collapse/expand, drag does not click, text translation and input focus collapse.');
+  console.log('PASS floating controls: no avoidance in either state, real drag, collapse/expand, text translation and no automatic collapse on input focus.');
 }

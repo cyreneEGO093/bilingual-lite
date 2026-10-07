@@ -10,6 +10,8 @@ import { ensureImageAccess } from '../lib/image-access';
 import { getTextScope, saveTextScope } from '../lib/text-scope';
 import { getOverlayStyle } from '../lib/overlay-preferences';
 import { getTranslationProfile } from '../lib/profile-preferences';
+import { getFloatingScale } from '../lib/floating-preferences';
+import { getCustomPrompts } from '../lib/prompt-preferences';
 export default defineBackground(() => {
   // Chromium can prevent content scripts from reading local storage directly.
   browser.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
@@ -24,15 +26,18 @@ export default defineBackground(() => {
     if(tab?.id) await browser.tabs.sendMessage(tab.id,{type:'toggle'}).catch(()=>{});
   });
   browser.storage.onChanged.addListener(async (changes,area)=>{
-    if(area!=='local' || (!changes.settings&&!changes.textScope&&!changes.overlayStyle&&!changes.translationProfile)) return;
-    if(changes.translationProfile)clearTextCache();
+    if(area!=='local' || (!changes.settings&&!changes.textScope&&!changes.overlayStyle&&!changes.translationProfile&&!changes.floatingScale&&!changes.customPrompts)) return;
+    if(changes.translationProfile||changes.customPrompts||changes.settings)clearTextCache();
     const scope=changes.textScope?await getTextScope():undefined;
     const overlayStyle=changes.overlayStyle?await getOverlayStyle():undefined;
+    const floatingScale=changes.floatingScale?await getFloatingScale():undefined;
     for(const tab of await browser.tabs.query({})) if(tab.id) {
       if(changes.settings) void browser.tabs.sendMessage(tab.id,{type:'settingsChanged'}).catch(()=>{});
       if(scope) void browser.tabs.sendMessage(tab.id,{type:'textScopeChanged',scope}).catch(()=>{});
       if(overlayStyle) void browser.tabs.sendMessage(tab.id,{type:'overlayStyleChanged',style:overlayStyle}).catch(()=>{});
       if(changes.translationProfile) void browser.tabs.sendMessage(tab.id,{type:'profileChanged'}).catch(()=>{});
+      if(changes.customPrompts) void browser.tabs.sendMessage(tab.id,{type:'promptsChanged'}).catch(()=>{});
+      if(floatingScale!==undefined) void browser.tabs.sendMessage(tab.id,{type:'floatingScaleChanged',scale:floatingScale}).catch(()=>{});
     }
   });
   browser.runtime.onMessage.addListener((message, sender, respond) => {
@@ -41,14 +46,15 @@ export default defineBackground(() => {
       if (message?.type === 'models' && sender.url?.startsWith(browser.runtime.getURL(''))) return listModels(await getSettings());
       if (message?.type === 'getTextScope' && sender.tab) return getTextScope();
       if (message?.type === 'getOverlayStyle' && sender.tab) return getOverlayStyle();
+      if (message?.type === 'getFloatingScale' && sender.tab) return getFloatingScale();
       if (message?.type === 'setTextScope' && sender.tab) return saveTextScope(message.scope);
-      if (message?.type === 'translateText' && sender.tab) return translateText(await getSettings(),message.items,await getTranslationProfile());
+      if (message?.type === 'translateText' && sender.tab) return translateText(await getSettings(),message.items,await getTranslationProfile(),await getCustomPrompts());
       if (message?.type === 'fetchImage' && sender.tab) {
         await ensureImageAccess(message.url);
         return prepareRemoteImage(message.url,message.layout);
       }
-      if (message?.type === 'translateImage' && sender.tab) return translateImage(await getSettings(),message.dataUrl,await getTranslationProfile());
-      if (message?.type === 'translateSnippet' && sender.tab) return translateSnippet(await getSettings(),message.dataUrl,await getTranslationProfile());
+      if (message?.type === 'translateImage' && sender.tab) return translateImage(await getSettings(),message.dataUrl,await getTranslationProfile(),await getCustomPrompts());
+      if (message?.type === 'translateSnippet' && sender.tab) return translateSnippet(await getSettings(),message.dataUrl,await getTranslationProfile(),await getCustomPrompts());
       throw new Error('未知请求。');
     })().then(data => respond({ ok: true, data }), error => respond({ ok: false, error: error instanceof Error ? error.message : '操作失败。', ...(error instanceof ApiError?{status:error.status}:{}), ...(error instanceof OutputFormatError?{code:error.code}:{}) }));
     return true;
