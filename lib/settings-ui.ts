@@ -11,6 +11,7 @@ export async function mountSettings(popup = false) {
   const app = document.querySelector<HTMLElement>('#app')!;
   app.innerHTML = `<header><img class="brand-icon" src="icons/96.png" width="48" height="48" alt=""><div><h1>双语轻译</h1><p>原文在上，理解在旁。</p></div></header>
     <button id="toggle" class="primary" type="button">切换当前网页翻译 · Alt+Shift+T</button>
+    <p id="full-settings"><a href="options.html" target="_blank" rel="noopener">打开完整设置页</a></p>
     <label>网页翻译范围（自动保存）<select id="text-scope" disabled><option value="viewport">滚动翻译 · 只翻译可见段落</option><option value="page">整页翻译 · 分批翻译所有段落</option></select></label>
     <p>整页模式处理当前已加载的正文，无需滚动，可能增加用量。</p>
     <div id="floating-settings"></div>
@@ -24,14 +25,19 @@ export async function mountSettings(popup = false) {
     <label>图片 / 漫画模型<input name="visionModel" list="image-models" required></label><datalist id="image-models"></datalist>
     <div class="actions"><button class="primary" type="submit">保存设置</button><button id="models" type="button">连接并查询模型</button></div></form>
     <p id="status" role="status" aria-live="polite"></p><footer>按所选范围翻译网页；图片需手动点击。内容、自定义提示词、作品背景和相关术语会发送至您设置的 API，密钥随请求用于该服务认证。配置保存在本机，不同步。每次调用可能计费。<br><a href="legal/privacy.html" target="_blank" rel="noopener">隐私说明</a> · <a href="legal/LICENSE.txt" target="_blank" rel="noopener">GPL-3.0 · 无担保</a> · <a href="legal/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">第三方许可</a><br>© 2026 Bilingual Lite contributors · 可依 GPL-3.0 修改与再分发。</footer>`;
-  if(!popup)app.querySelector('#toggle')!.remove();
+  if(!popup){app.querySelector('#toggle')!.remove();app.querySelector('#full-settings')!.remove();}
+  else window.scrollTo(0,0);
   const form = app.querySelector('form')!;
   const status = app.querySelector<HTMLElement>('#status')!;
   const report = (e: unknown) => { status.textContent = e instanceof Error ? e.message : String(e); };
-  await mountOverlaySettings(app.querySelector<HTMLElement>('#overlay-settings')!,report);
-  await mountProfileSettings(app.querySelector<HTMLElement>('#profile-settings')!,report);
-  await mountFloatingSettings(app.querySelector<HTMLElement>('#floating-settings')!,report);
-  await mountPromptSettings(app.querySelector<HTMLElement>('#prompt-settings')!,report);
+  // Render each section immediately. A slow storage read in one section must not
+  // hold up the other sections or the main form's event handlers.
+  const sections=Promise.allSettled([
+    mountOverlaySettings(app.querySelector<HTMLElement>('#overlay-settings')!,report),
+    mountProfileSettings(app.querySelector<HTMLElement>('#profile-settings')!,report),
+    mountFloatingSettings(app.querySelector<HTMLElement>('#floating-settings')!,report),
+    mountPromptSettings(app.querySelector<HTMLElement>('#prompt-settings')!,report)
+  ]);
   const scopeSelect=app.querySelector<HTMLSelectElement>('#text-scope')!;
   try {scopeSelect.value=await getTextScope();} catch(e){report(e);} finally {scopeSelect.disabled=false;}
   scopeSelect.addEventListener('change',async()=>{
@@ -66,4 +72,5 @@ export async function mountSettings(popup = false) {
     try { const [tab] = await browser.tabs.query({ active: true, currentWindow: true }); if (tab?.id) await browser.tabs.sendMessage(tab.id, { type: 'toggle' }); }
     catch { report('此页面无法注入翻译，请打开普通网页并刷新后重试。'); }
   });
+  for(const result of await sections)if(result.status==='rejected')report(result.reason);
 }

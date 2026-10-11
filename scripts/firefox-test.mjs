@@ -62,6 +62,22 @@ try{
   await wait("return !!document.querySelector('[name=textModel]')?.value");
   await run("document.querySelector('[name=baseUrl]').value=arguments[0];document.querySelector('[name=apiKey]').value='mock-key';document.querySelector('#models').click();",[`${base}/v1`]);
   await wait("return document.querySelector('#status').textContent.includes('连接成功')");
+  // Open the real native action panel repeatedly; inspect its browser surface.
+  for(let i=0;i<10;i++){
+    const opened=await command('POST',`/session/${session}/execute/async`,{script:"const done=arguments[arguments.length-1];browser.action.openPopup().then(()=>done(true),e=>done(String(e)));",args:[]});assert.equal(opened,true);
+    await command('POST',`/session/${session}/moz/context`,{context:'chrome'});
+    await wait("return [...document.querySelectorAll('browser[webextension-view-type=popup]')].some(b=>b.currentURI?.spec.endsWith('/popup.html')&&b.getBoundingClientRect().width>=380&&b.getBoundingClientRect().height>=360)");
+    const size=await run("const b=[...document.querySelectorAll('browser[webextension-view-type=popup]')].find(b=>b.getBoundingClientRect().width>0);return {width:b.getBoundingClientRect().width,height:b.getBoundingClientRect().height};");assert.ok(size.width<=400&&size.height<=600);
+    await run("document.querySelector('browser[webextension-view-type=popup]').closest('panel').hidePopup()");
+    await wait("return ![...document.querySelectorAll('browser[webextension-view-type=popup]')].some(b=>b.getBoundingClientRect().width>0)");
+    await command('POST',`/session/${session}/moz/context`,{context:'content'});
+  }
+  await go(`moz-extension://${uuid}/popup.html`);await wait("return !!document.querySelector('[name=textModel]')?.value");
+  assert.equal(await run("return document.body.getBoundingClientRect().width"),390);
+  assert.ok(await run("return !!document.querySelector('#full-settings a')&&document.body.scrollWidth<=390&&document.querySelector('h1').getBoundingClientRect().top>=0"));
+  await writeFile('evidence/popup-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  await run('window.scrollTo(0,1000)');await command('POST',`/session/${session}/refresh`,{});await wait("return !!document.querySelector('[name=textModel]')?.value");assert.equal(await run('return scrollY'),0);
+  console.log('PASS Firefox popup: 10 real native opens at 390 x 600, readable settings, no horizontal overflow and reload resets scroll.');
   await go(base);await wait("return !!document.querySelector('[data-bl-owned=controls]')");
   await run("document.querySelector('[data-bl-owned=controls]').shadowRoot.querySelector('button').click()");
   await wait("return document.querySelectorAll('.bl-translation').length===5");assert.equal(textRequests,1);
@@ -162,10 +178,31 @@ try{
   await wait("return [...document.querySelectorAll('menuitem')].some(n=>n.getAttribute('label')==='双语轻译：翻译此图片'&&n.getBoundingClientRect().width>0)");
   const menu=await command('POST',`/session/${session}/element`,{using:'css selector',value:'menuitem[label="双语轻译：翻译此图片"]'});
   await command('POST',`/session/${session}/element/${menu['element-6066-11e4-a52e-4f735466cecf']}/click`,{});
+  // Marionette menuitem clicks invoke the command but may leave the native menu
+  // open. Dismiss it explicitly before subsequent pointer tests.
+  await run("document.querySelector('#contentAreaContextMenu').hidePopup()");
   await command('POST',`/session/${session}/moz/context`,{context:'content'});
   await wait("return !!document.querySelector('[data-bl-owned=image-overlay]')");assert.equal(imageRequests,imageCount+1);
   console.log('PASS Firefox native image context menu: menu present and command routes to the clicked image.');
   await checkBatch({run,wait,press:async expression=>{const p=await controlPoint(expression);await pointer([moveTo(p.x,p.y),{type:'pointerDown',button:0},{type:'pointerUp',button:0}]);},calls:()=>imageRequests});
   await writeFile('evidence/page-images-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  await command('POST',`/session/${session}/window/rect`,{width:1100,height:1000});
+  await go(base);await wait("return !!document.querySelector('p')&&!!document.querySelector('[data-bl-owned=controls]')");
+  await run("const p=document.querySelector('p');p.textContent='Right click translates only this selected sentence.';const r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);");
+  const selected=await run('return getSelection().toString()'),selectionCalls=textRequests;
+  const textPoint=await controlPoint("getSelection().getRangeAt(0)");
+  await pointer([moveTo(textPoint.x,textPoint.y),{type:'pointerDown',button:2},{type:'pointerUp',button:2}]);
+  await command('POST',`/session/${session}/moz/context`,{context:'chrome'});
+  await wait("return [...document.querySelectorAll('menuitem')].some(n=>n.getAttribute('label')==='双语轻译：翻译选中文本'&&n.getBoundingClientRect().width>0)");
+  const textMenu=await command('POST',`/session/${session}/element`,{using:'css selector',value:'menuitem[label="双语轻译：翻译选中文本"]'});
+  await command('POST',`/session/${session}/element/${textMenu['element-6066-11e4-a52e-4f735466cecf']}/click`,{});
+  await run("document.querySelector('#contentAreaContextMenu').hidePopup()");
+  await command('POST',`/session/${session}/moz/context`,{context:'content'});
+  await wait("return document.querySelector('[data-bl-owned=selection]')?.shadowRoot.querySelector('#status')?.textContent==='翻译完成。'");
+  assert.equal(textRequests,selectionCalls+1);assert.equal(JSON.parse(completions.at(-1).messages[1].content)[0].text,selected);
+  assert.equal(await run("return document.querySelectorAll('.bl-translation').length"),0);
+  await writeFile('evidence/selection-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
+  await run("document.querySelector('[data-bl-owned=selection]').shadowRoot.querySelector('#close').click()");assert.equal(await run("return !!document.querySelector('[data-bl-owned=selection]')"),false);
+  console.log('PASS Firefox native selection context menu: exact selection only, separate result, no page translation and close.');
   console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, CORS image, bubbles, toggle, real pointer snip drag and precise crop overlay; ${textRequests} text + ${imageRequests} full + ${snippetRequests} snip mock requests.`);
 }catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads,pixiv:pixiv.requests});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await pixiv.close();await new Promise(r=>server.close(r));}

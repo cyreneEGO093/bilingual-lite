@@ -15,10 +15,19 @@ import { getCustomPrompts } from '../lib/prompt-preferences';
 export default defineBackground(() => {
   // Chromium can prevent content scripts from reading local storage directly.
   browser.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
-  const installMenus=()=>{if(!browser.contextMenus)return;void browser.contextMenus.removeAll().then(()=>browser.contextMenus.create({id:'translate-image',title:'双语轻译：翻译此图片',contexts:['image'],documentUrlPatterns:['http://*/*','https://*/*']})).catch(()=>{});};
+  const installMenus=()=>{if(!browser.contextMenus)return;void browser.contextMenus.removeAll().then(()=>{
+    browser.contextMenus.create({id:'translate-image',title:'双语轻译：翻译此图片',contexts:['image'],documentUrlPatterns:['http://*/*','https://*/*']});
+    browser.contextMenus.create({id:'translate-selection',title:'双语轻译：翻译选中文本',contexts:['selection'],documentUrlPatterns:['http://*/*','https://*/*']});
+  }).catch(()=>{});};
   browser.runtime.onInstalled.addListener(installMenus);
   browser.runtime.onStartup.addListener(installMenus);
-  browser.contextMenus?.onClicked.addListener((info,tab)=>{if(info.menuItemId==='translate-image'&&tab?.id)void browser.tabs.sendMessage(tab.id,{type:'contextImage',url:info.srcUrl},{frameId:info.frameId??0}).catch(()=>{});});
+  browser.contextMenus?.onClicked.addListener((info,tab)=>{
+    if(tab?.id===undefined)return;
+    if(info.menuItemId==='translate-image')void browser.tabs.sendMessage(tab.id,{type:'contextImage',url:info.srcUrl},{frameId:info.frameId??0}).catch(()=>{});
+    // selectionText is the browser's snapshot, including selection in child frames.
+    // Display in the top page, where our content script and result panel live.
+    if(info.menuItemId==='translate-selection'&&typeof info.selectionText==='string')void browser.tabs.sendMessage(tab.id,{type:'contextText',text:info.selectionText},{frameId:0}).catch(()=>{});
+  });
   // Firefox for Android has no keyboard commands API. Do not stop background initialization.
   browser.commands?.onCommand.addListener(async command => {
     if(command!=='toggle-translation') return;

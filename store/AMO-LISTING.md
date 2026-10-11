@@ -15,6 +15,7 @@
 双语轻译是一款轻量网页与漫画翻译扩展。无需安装本地 OCR 或 Python，使用您自己配置的 OpenAI 兼容 API 服务。
 
 - 网页阅读：滚动到可见段落时翻译，也可分批翻译当前已加载的整页内容。可切换双语或仅译文；异常批次保留原文，支持单独重试。
+- 选中文本：桌面选中网页文字后右键翻译，在独立结果窗查看原文与译文；不必开启整页翻译。
 - 图片与漫画：桌面支持右键翻译单张图片、一键分批翻译整页已加载图片，并可停止后续任务。桌面悬停、手机长按图片打开整图／框选工具。译文覆盖层可移动、缩放，背景透明度和默认大小可调整；手机通过“校准位置”显示框外调整工具，阅读时隐藏手柄。
 - 浮动工具可拖动、收起并调整大小；所有状态都不自动避让网页内容或在输入时自动收起，仅保留屏幕边界限制。
 - 自定义提示词：分别设置网页、整图和框选翻译要求，支持恢复默认。必要的 JSON 返回格式由程序保留。
@@ -29,7 +30,7 @@
 
 项目主页：https://github.com/cyreneEGO093/bilingual-lite
 
-本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.6.0/bilingual-lite-0.6.0-source.zip
+本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.6.1/bilingual-lite-0.6.1-source.zip
 
 ## Other submission fields
 
@@ -37,19 +38,19 @@
 - Platform: desktop Firefox and Firefox for Android; verify Android compatibility derived from the manifest's `gecko_android` declaration.
 - Icon: `assets/icon-512.png` or `public/icons/128.png` (upload separately).
 - Privacy policy: copy the complete `PRIVACY.md` text into AMO's privacy-policy field.
-- Source attachment: `bilingual-lite-0.6.0-source.zip`; build/review instructions: `BUILDING.md`.
+- Source attachment: `bilingual-lite-0.6.1-source.zip`; build/review instructions: `BUILDING.md`.
 - Homepage: https://github.com/cyreneEGO093/bilingual-lite
 - Support: https://github.com/cyreneEGO093/bilingual-lite/issues (no response or maintenance commitment).
 - Payment disclosure: API service may require a paid account; the extension is free.
 
-## Reviewer notes for 0.6.0
+## Reviewer notes for 0.6.1
 
-This updates the existing add-on, retaining the approved Gecko ID and Android compatibility. Version 0.6.0 removes automatic obstacle avoidance and input-focus auto-collapse for both desktop and mobile, expanded and collapsed controls. Controls remain bounded by the visible viewport and can be dragged manually, including the image toolbar. A local setting scales floating controls from 75% to 150% and synchronizes open pages without inference calls.
+This updates the existing add-on and retains its Gecko ID and Android compatibility. Version 0.6.1 fixes a suspected action-popup sizing feedback problem: the popup body no longer uses its own initial viewport as a maximum width. Initial HTML supplies a visible loading/fallback link; section initialization runs independently, reopening resets scrolling, and the complete Options page is accessible from the popup.
 
-Users can edit separate text, full-image and crop translation instructions, with a 3000-character limit per task and a restore-defaults action. These instructions are sent only to the configured translation API with the corresponding request. Saving stops existing translation and clears stale results without automatic inference. JSON schemas, coordinate validation and request limits remain enforced by the application. The privacy policy documents custom prompts. There are no new permissions, dependencies, telemetry or executable remote code.
+The new desktop selection context menu uses the browser-provided `selectionText` snapshot, including selections in child frames, and displays the result in a separate top-page panel. It translates only the explicit selection (maximum 6000 characters, serial chunks of at most 1200), without enabling page translation. It reuses the existing text API, model, glossary, custom text prompt, cache and request limits. Failures allow manual retry of unfinished chunks; closing cancels subsequent chunks and ignores late results. Already-sent API calls can still complete. Model output is rendered as text, never HTML. No new permissions, dependencies, analytics or remote executable code. Privacy text is updated for selection transmission.
 
-The matching source attachment is `bilingual-lite-0.6.0-source.zip`. Build with Node.js 24 and npm 11: extract into an empty directory, run `npm ci`, `npm test`, `npm run build`, `npm run lint:firefox`, then `npm run zip`. The Firefox output is `dist/firefox-mv3/` and `dist/bilingual-lite-0.6.0-firefox.zip`. Compare extracted file contents, as ZIP timestamps may differ. Detailed instructions and an account-free local review server are in `BUILDING.md`.
+Attach `bilingual-lite-0.6.1-source.zip`. With Node.js 24 and npm 11, extract into an empty directory and run `npm ci`, `npm test`, `npm run build`, `npm run lint:firefox`, then `npm run zip`. Firefox output: `dist/firefox-mv3/` and `dist/bilingual-lite-0.6.1-firefox.zip`. Compare extracted files rather than ZIP timestamps. See `BUILDING.md` and `store/REPRODUCIBILITY.json` for details.
 
-Validation: 99 automated tests, desktop Chrome 153 / Firefox 155 interaction tests (including page-image batches and a native Firefox context-menu click), and Firefox Android 157 on an Android 14 emulator. Tests cover no automatic avoidance or collapse, live UI scaling, custom prompt persistence and request routing, as well as scrolling, tiny-bubble tools, the soft keyboard, long press, cropping and landscape. Firefox lint reports zero errors, warnings or notices. All fixtures use local mock responses; no API credentials are included. BUILDING.md documents the optional Android test environment and runner.
+Account-free review: run `node scripts/reviewer-server.mjs`, set API Endpoint to `http://127.0.0.1:8787/v1`, clear API Key, save, and open `http://127.0.0.1:8787/`. Select a sentence, right-click and choose “双语轻译：翻译选中文本”; check the result panel, original text, Close/Esc and that page translation remains off. Open/close the extension action popup repeatedly, scroll its settings and test “打开完整设置页”. `/manga` and `/batch` cover retained image features. All responses are synthetic; no paid account or bundled API key is needed.
 
-This file is not part of the installable extension ZIP.
+Validation: 104 automated tests, Chrome 153 and Firefox 155 extension regressions, 10 native popup opens per browser, Firefox native selection context menu, and zero Mozilla lint errors/warnings/notices. Chrome tests inspect its native popup via CDP and exercise selection message/network/UI integration. Android's full emulator validation was last completed for 0.6.0 (Firefox Android 157 / Android 14); it was not rerun for this desktop-focused update. The intermittent popup issue was not reproduced on the user's exact profile, so the change is a targeted mitigation rather than a guarantee.

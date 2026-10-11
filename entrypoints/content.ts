@@ -10,6 +10,7 @@ import { validTextScope, type TextScope } from '../lib/text-scope';
 import { validateOverlayStyle, type OverlayStyle } from '../lib/overlay-style';
 import { createFloatingControls } from '../lib/floating-controls';
 import { validateFloatingScale } from '../lib/floating-preferences';
+import { createSelectionUI } from '../lib/selection-ui';
 import '../lib/content.css';
 export default defineContentScript({
   matches: ['http://*/*','https://*/*'], runAt:'document_idle',
@@ -23,6 +24,7 @@ export default defineContentScript({
     retry.addEventListener('click',()=>translator.retryFailed());
     mode.addEventListener('click',()=>translator.toggleMode());
     const send=async<T>(message:BackgroundRequest):Promise<T>=>{const reply:ApiReply<T>=await browser.runtime.sendMessage(message);if(!reply.ok)throw Object.assign(new Error(reply.error),{status:reply.status});return reply.data;};
+    const selection=createSelectionUI(items=>send<TextResult[]>({type:'translateText',items}));
     const applyScope=(scope:TextScope)=>{translator.setScope(scope);scopeSelect.value=scope;};
     scopeSelect.disabled=true;
     const scopeReady=send<TextScope>({type:'getTextScope'}).then(applyScope).catch(e=>showStatus(e.message)).finally(()=>{scopeSelect.disabled=false;});
@@ -41,8 +43,8 @@ export default defineContentScript({
     void send<number>({type:'getFloatingScale'}).then(value=>{if(scaleRevision===0)applyScale(value);}).catch(e=>showStatus(e.message));
     let styleRevision=0;
     void send<OverlayStyle>({type:'getOverlayStyle'}).then(style=>{if(styleRevision===0)images.setStyle(style);}).catch(e=>showStatus(e.message));
-    const listener=(message: {type:string;url?:string;scope?:unknown;style?:unknown;scale?:unknown})=>{if(message.type==='floatingScaleChanged'){try{scaleRevision++;applyScale(message.scale);}catch{/* Ignore invalid preferences. */}}if(message.type==='overlayStyleChanged'){try{styleRevision++;images.setStyle(validateOverlayStyle(message.style));}catch{/* Ignore malformed internal preferences. */}}if(message.type==='toggle') void scopeReady.then(()=>translator.toggle());if(message.type==='textScopeChanged'&&validTextScope(message.scope))applyScope(message.scope);if(message.type==='textMode')translator.toggleMode();if(message.type==='contextImage')images.contextTranslate(message.url); if(message.type==='settingsChanged'||message.type==='profileChanged'||message.type==='promptsChanged') {translator.stop();images.reset(); showStatus(message.type==='promptsChanged'?'提示词已更新，请重新翻译。':message.type==='profileChanged'?'术语与背景已更新，请重新翻译。':'设置已更新，请重新开启翻译。'); button.textContent='译 · 开启翻译';mode.hidden=true;retry.hidden=true;}};
+    const listener=(message: {type:string;url?:string;text?:unknown;scope?:unknown;style?:unknown;scale?:unknown})=>{if(message.type==='floatingScaleChanged'){try{scaleRevision++;applyScale(message.scale);}catch{/* Ignore invalid preferences. */}}if(message.type==='overlayStyleChanged'){try{styleRevision++;images.setStyle(validateOverlayStyle(message.style));}catch{/* Ignore malformed internal preferences. */}}if(message.type==='toggle') void scopeReady.then(()=>translator.toggle());if(message.type==='textScopeChanged'&&validTextScope(message.scope))applyScope(message.scope);if(message.type==='textMode')translator.toggleMode();if(message.type==='contextImage')images.contextTranslate(message.url);if(message.type==='contextText')selection.translate(message.text); if(message.type==='settingsChanged'||message.type==='profileChanged'||message.type==='promptsChanged') {selection.close();translator.stop();images.reset(); showStatus(message.type==='promptsChanged'?'提示词已更新，请重新翻译。':message.type==='profileChanged'?'术语与背景已更新，请重新翻译。':'设置已更新，请重新开启翻译。'); button.textContent='译 · 开启翻译';mode.hidden=true;retry.hidden=true;}};
     browser.runtime.onMessage.addListener(listener);
-    ctx.onInvalidated(()=>{translator.stop();images.destroy();controls.destroy();browser.runtime.onMessage.removeListener(listener);});
+    ctx.onInvalidated(()=>{selection.destroy();translator.stop();images.destroy();controls.destroy();browser.runtime.onMessage.removeListener(listener);});
   }
 });

@@ -10,6 +10,7 @@ import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-s
 import { serveToolbarFixture, toolbarBubbles, checkImageToolbar } from './image-toolbar-scenario.mjs';
 import { serveMobileFixture, checkComposer } from './mobile-fixtures.mjs';
 import { serveBatchFixture, checkBatch } from './image-batch-scenario.mjs';
+import { checkNativePopup } from './chrome-popup-scenario.mjs';
 const recovery=recoveryMock();
 let toolbarTesting=false;
 
@@ -247,6 +248,25 @@ try {
   await options.screenshot({path:'evidence/custom-prompts.png',fullPage:true});
   await options.locator('#reset-prompts').click();await options.locator('#status').filter({hasText:'提示词已保存'}).waitFor();
   assert.ok((await options.locator('#prompt-image').inputValue()).includes('RIGHT TO LEFT'));
+  const popup=await context.newPage();
+  await checkNativePopup(context,worker);
+  for(let i=0;i<10;i++){
+    await popup.goto(optionsUrl.replace('options.html','popup.html'));
+    await popup.locator('[name=textModel]').waitFor();
+    await popup.waitForFunction(()=>!!document.querySelector('[name=textModel]').value);
+    assert.equal(await popup.evaluate(()=>document.body.getBoundingClientRect().width),390);
+    assert.equal(await popup.evaluate(()=>document.body.scrollWidth<=390&&scrollY===0),true);
+    await popup.locator('#full-settings a').waitFor();await popup.evaluate(()=>scrollTo(0,1000));
+  }
+  await popup.screenshot({path:'evidence/popup-chrome.png'});await popup.close();
+  await page.goto(base);const selected=await page.locator('p').first().textContent(),selectionCalls=requests.length;
+  const tabs=await worker.evaluate(()=>chrome.tabs.query({}));const selectionTab=tabs.find(t=>t.url===base+'/');assert.ok(selectionTab);
+  await worker.evaluate(({id,text})=>chrome.tabs.sendMessage(id,{type:'contextText',text},{frameId:0}),{id:selectionTab.id,text:selected});
+  await page.locator('[data-bl-owned=selection]').locator('#status').filter({hasText:'翻译完成'}).waitFor();
+  assert.equal(JSON.parse(requests.at(-1).messages[1].content)[0].text,selected);assert.ok(requests.length<=selectionCalls+1);
+  assert.equal(await page.locator('.bl-translation').count(),0);await page.screenshot({path:'evidence/selection-chrome.png'});
+  await page.locator('[data-bl-owned=selection]').locator('#close').click();assert.equal(await page.locator('[data-bl-owned=selection]').count(),0);
+  console.log('PASS Chromium popup: 10 document reloads, fixed width/readable settings/no horizontal overflow; selection message uses existing API and leaves page translation off.');
   console.log('PASS customization: 75/150/100% live controls, persistence, prompt cache invalidation, text/image/snippet requests and restore defaults.');
   console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');
   console.log(`PASS image: CORS/hotlink fallback and 403, 1280x800 full image, 400x200 crop, reverse drag, Escape cancellation, exact snip placement, resize, hide/show, cached full; ${imageRequests.length} full + ${snippetRequests.length} snippet mock calls.`);
