@@ -1,0 +1,35 @@
+{
+  "version": "0.6.2",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "checkedAt": "2026-10-20T08:50:52.891Z",
+  "scope": "Actual text API client; synthetic Korean/Japanese posts and short reply; default and synthetic custom prompts. No authenticated X page or private user content.",
+  "successfulBatches": 2,
+  "itemsPerBatch": 5,
+  "reportedCostUSD": 0.00022058400000000001,
+  "requests": [
+    {
+      "status": 200,
+      "seconds": 1.567,
+      "finishReason": "stop",
+      "usage": {
+        "promptTokens": 278,
+        "completionTokens": 85,
+        "reasoningTokens": 0,
+        "costUSD": 8.9409e-05
+      },
+      "customPrompt": false
+    },
+    {
+      "status": 200,
+      "seconds": 1.414,
+      "finishReason": "stop",
+      "usage": {
+        "promptTokens": 271,
+        "completionTokens": 78,
+        "reasoningTokens": 0,
+        "costUSD": 0.000131175
+      },
+      "customPrompt": true
+    }
+  ]
+}

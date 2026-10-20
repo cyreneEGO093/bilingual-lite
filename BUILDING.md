@@ -1,6 +1,6 @@
 # Reproducible build / AMO source instructions
 
-Release: 0.6.1. License: GPL-3.0-only, with unmodified MIT runtime components.
+Release: 0.6.2. License: GPL-3.0-only, with unmodified MIT runtime components.
 
 ## Environment and commands
 
@@ -18,7 +18,7 @@ npm run zip
 
 `npm ci` downloads public packages from the official npm registry using `package-lock.json`. The WXT postinstall prepares local types. The optional esbuild native helper is a build tool, not extension runtime code. Do not run `npm update` or replace the lockfile when reproducing this release.
 
-Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.6.1-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
+Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.6.2-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
 
 PNG icons and legal texts are included in the source archive. `assets/icon.svg` is the original editable artwork. Regenerating PNGs is optional (`node scripts/create-icons.mjs`, with Playwright Chromium installed or `TEST_BROWSER_PATH` set), and is not part of the release build. The build records actually included npm runtime modules under `.wxt/license-audit/`; `npm run audit:licenses` regenerates their notices, module hashes and exact source snapshots. A new runtime dependency fails this audit pending license review.
 
@@ -32,11 +32,19 @@ PNG icons and legal texts are included in the source archive. `assets/icon.svg` 
 6. Open `/batch` and click “翻译整页图片”. Check overlays on the eligible images, including images below the fold. Hidden/small images are skipped. Repeat without additional API requests; right-click an image and choose “双语轻译：翻译此图片” to test a single image. A running batch can be stopped with the same button.
 7. On Android, scroll `/mobile-feed` in both directions and observe the compact launcher's position. On `/mobile-manga`, translate the image, enter calibration, select a small bubble and drag the separate Move/Resize controls. Done hides them for reading.
 8. Select text on `/`, right-click and choose “双语轻译：翻译选中文本”. Confirm only the selected text appears in the separate result panel, the page translation stays off, and Close/Esc removes the panel. Open the action popup repeatedly and check the heading, vertical scrolling and “打开完整设置页” link.
-9. Close translation and confirm original content is restored. Ctrl+C stops the fixture server. No API key, account or payment is needed for this local workflow.
+9. Open `/social`, a synthetic social-feed fixture with X-style DOM selectors. In scrolling and whole-page modes, check Korean/Japanese bodies and a short reply; author names, dates and counters should remain outside the translations. Switch translated-only and confirm the metadata stays visible. The displayed Chinese strings are deterministic mock output.
+10. On `/manga`, translate the full image and a crop, then use “清空译文”. Both overlays should disappear and calibration controls become unavailable. Translating again sends a new request. “清除遮罩／恢复遮罩” only hides/shows retained results.
+11. Close translation and confirm original content is restored. Ctrl+C stops the fixture server. No API key, account or payment is needed for this local workflow.
 
 These fixtures exercise actual extension networking, rendering and settings, but do not test a third-party model's translation quality. Real inference requires a user's BYOK service account; no credentials are distributed with the source or binary. If reviewers require live-service testing, the publisher must supply any temporary restricted credentials privately through AMO, never inside the public package.
 
 In Options, test “悬浮工具大小” at 75%, 100% and 150% and inspect an already-open page. Under “自定义翻译提示词”, edit the three tasks, save and verify existing translations are cleared without additional requests. New translation requests use the matching task; restore defaults to reset all three. The mock server still returns synthetic text and does not evaluate translation style.
+
+## Optional paid text smoke test
+
+The default build and review workflow above is free. `node scripts/live-text-test.mjs` is a separate, optional paid check of the actual text client using only synthetic Korean/Japanese posts. It requires curl on PATH and `OPENROUTER_API_KEY` in the process environment; optionally set `LIVE_SOCKS_PROXY`. Do not put a key in any file, source package or command committed to Git.
+
+It queries the model catalog first, caps total completion HTTP attempts at two (including retries), enforces the existing 1500 output-token limit and rejects catalog pricing whose conservative two-call estimate exceeds $0.01. It records API-reported cost rather than treating the estimate as the final bill. Results go to ignored `evidence/live-text-0.6.2.json`; the release includes only a sanitized aggregate under `store/LIVE-TEXT-CHECK.json`. Do not run it unless you intend to authorize API charges. Neither this check nor the synthetic browser fixtures logs in to X.
 
 ## Optional Android interaction tests
 
@@ -53,7 +61,7 @@ For manual Android review, forward the review server with `adb -s <serial> rever
 
 ## Submission context
 
-- Minimum desktop Firefox 140 and Android Firefox 142, with built-in consent for `websiteContent` and `authenticationInfo`. Submit 0.6.1 as an update to the existing add-on and verify AMO lists Android compatibility as well as desktop. The manifest already declares `gecko_android`; AMO derives its Android range from that declaration ([Mozilla compatibility guidance](https://extensionworkshop.com/documentation/publish/version-compatibility/)). Android validation was last run for v0.6.0 with version 157.0 on an Android 14 emulator; this desktop-focused update was not retested on Android; lower declared versions and physical phones have not been individually tested.
+- Minimum desktop Firefox 140 and Android Firefox 142, with built-in consent for `websiteContent` and `authenticationInfo`. Submit 0.6.2 as an update to the existing add-on and verify AMO lists Android compatibility as well as desktop. The manifest already declares `gecko_android`; AMO derives its Android range from that declaration ([Mozilla compatibility guidance](https://extensionworkshop.com/documentation/publish/version-compatibility/)). Android validation was last run for v0.6.0 with version 157.0 on an Android 14 emulator; this desktop-focused update was not retested on Android; lower declared versions and physical phones have not been individually tested.
 - Broad HTTP(S) host access supports content scripts, user-configurable HTTPS APIs and cross-origin image downloads. Actual remote API and image-download requests require HTTPS; loopback HTTP is allowed for local services. Page content is sent only when translation is enabled or invoked.
 - Pixiv request header adjustment is limited to extension-initiated HTTPS GET requests to `pximg.net`; it sends only the constant `https://www.pixiv.net/` origin as Referer and no site cookies.
 - No analytics, remote scripts, native messaging, downloaded model execution or image inpainting. Model outputs are validated and inserted as text, never executable HTML.

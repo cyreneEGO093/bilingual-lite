@@ -23,21 +23,21 @@ export function installImageUI(transport:ImageTransport,report:(text:string)=>vo
   const host=document.createElement('div');host.dataset.blOwned='image-button';
   Object.assign(host.style,{position:'fixed',zIndex:'2147483647',display:'none',width:'max-content',maxWidth:'calc(100vw - 24px)'});
   const root=host.attachShadow({mode:'open'});
-  root.innerHTML='<style>:host{all:initial}.bar{display:flex;flex-wrap:wrap;gap:3px;max-width:100%}button{font:12px system-ui;border:1px solid #d5e4d7;background:#245d48;color:#fff;border-radius:7px;padding:7px 9px;cursor:pointer;box-shadow:0 2px 8px #0003}button:disabled{opacity:.55;cursor:wait}button[hidden],.bar[hidden]{display:none}</style><button id="expand" hidden aria-expanded="false" aria-controls="bar">图片工具</button><div class="bar" id="bar"><button id="move-toolbar" aria-label="拖动图片工具栏" title="拖动移动图片工具栏">⠿</button><button id="full">全文翻译</button><button id="snip">手动框选</button><button id="clear" disabled>清除遮罩</button><button id="adjust" hidden>校准位置</button><button id="reset-layout" hidden>重置框位</button><button id="collapse" title="收起工具栏（Esc）" aria-label="收起图片工具栏">收起</button></div>';
+  root.innerHTML='<style>:host{all:initial}.bar{display:flex;flex-wrap:wrap;gap:3px;max-width:100%}button{font:12px system-ui;border:1px solid #d5e4d7;background:#245d48;color:#fff;border-radius:7px;padding:7px 9px;cursor:pointer;box-shadow:0 2px 8px #0003}button:disabled{opacity:.55;cursor:wait}button[hidden],.bar[hidden]{display:none}</style><button id="expand" hidden aria-expanded="false" aria-controls="bar">图片工具</button><div class="bar" id="bar"><button id="move-toolbar" aria-label="拖动图片工具栏" title="拖动移动图片工具栏">⠿</button><button id="full">全文翻译</button><button id="snip">手动框选</button><button id="clear" disabled>清除遮罩</button><button id="discard" disabled title="删除当前图片的整图、框选译文和缓存；再次翻译会重新请求 API">清空译文</button><button id="adjust" hidden>校准位置</button><button id="reset-layout" hidden>重置框位</button><button id="collapse" title="收起工具栏（Esc）" aria-label="收起图片工具栏">收起</button></div>';
   document.documentElement.append(host);
   const touchStyle=document.createElement('style');touchStyle.textContent='@media(pointer:coarse){button{min-height:44px;min-width:44px;font-size:14px}.bar{gap:4px}}';root.append(touchStyle);scaleControlCss(root);
   const full=root.querySelector<HTMLButtonElement>('#full')!,snip=root.querySelector<HTMLButtonElement>('#snip')!,clear=root.querySelector<HTMLButtonElement>('#clear')!,adjust=root.querySelector<HTMLButtonElement>('#adjust')!;
-  const resetLayout=root.querySelector<HTMLButtonElement>('#reset-layout')!;
+  const resetLayout=root.querySelector<HTMLButtonElement>('#reset-layout')!,discard=root.querySelector<HTMLButtonElement>('#discard')!;
   const bar=root.querySelector<HTMLElement>('#bar')!,expand=root.querySelector<HTMLButtonElement>('#expand')!,collapse=root.querySelector<HTMLButtonElement>('#collapse')!;
   let collapsed=false,manualPoint:Point|undefined,uiScale=100,hideTimer:ReturnType<typeof setTimeout>|undefined;
   const stopDrag=installToolDrag(host,[root.querySelector<HTMLButtonElement>('#move-toolbar')!,expand],p=>{manualPoint=p;});
   let style:OverlayStyle={...DEFAULT_OVERLAY_STYLE};
   let touchMode=matchMedia('(pointer:coarse)').matches;
   let current:ImageTarget|undefined,lastContext:ImageTarget|undefined,epoch=0,cancelSelection:(()=>void)|undefined;
-  const busy=new WeakSet<ImageTarget>(),overlays=new Map<ImageTarget,ImageOverlay>(),fullDone=new WeakSet<ImageTarget>();
+  const busy=new WeakMap<ImageTarget,symbol>(),revisions=new WeakMap<ImageTarget,number>(),overlays=new Map<ImageTarget,ImageOverlay>(),fullDone=new WeakSet<ImageTarget>();
   const fullCache=new Map<string,Bubble[]>();
-  const batch=new ImageBatch<{target:ImageTarget;source:string}>(async({target,source},active)=>{
-    if(!target.isConnected||signature(target)!==source)return 'skipped';
+  const batch=new ImageBatch<{target:ImageTarget;source:string;revision:number}>(async({target,source,revision},active)=>{
+    if(!target.isConnected||signature(target)!==source||(revisions.get(target)??0)!==revision)return 'skipped';
     return translate(target,undefined,active,true);
   },state=>{onBatch(state);if(!state.running&&state.total)report(`${state.stopping?'已停止':'整页图片完成'}：成功 ${state.done}，失败 ${state.failed}，跳过 ${state.skipped}，共 ${state.total} 张。${state.error}`);});
   function overlayFor(target:ImageTarget){const o=overlays.get(target);if(o&&(o.host.dataset.stale||!o.host.isConnected)){o.destroy();overlays.delete(target);fullDone.delete(target);return undefined;}return o;}
@@ -52,20 +52,20 @@ export function installImageUI(transport:ImageTransport,report:(text:string)=>vo
     const point=clampFloating(preferred,{width:host.offsetWidth,height:host.offsetHeight},view);
     host.style.left=`${point.left}px`;host.style.top=`${point.top}px`;
   }
-  function refresh(){const o=current?overlayFor(current):undefined;full.disabled=snip.disabled=current?busy.has(current):false;full.textContent=full.disabled?'翻译中…':'全文翻译';clear.disabled=!o;clear.textContent=o?.host.hidden?'恢复遮罩':'清除遮罩';adjust.hidden=resetLayout.hidden=!o;adjust.textContent=o?.editing?'完成校准':'校准位置';position();}
+  function refresh(){const o=current?overlayFor(current):undefined;full.disabled=snip.disabled=current?busy.has(current):false;full.textContent=full.disabled?'翻译中…':'全文翻译';clear.disabled=!o;discard.disabled=!current||(!o&&!busy.has(current)&&!fullCache.has(signature(current)));clear.title='临时隐藏／恢复译文，保留结果';clear.textContent=o?.host.hidden?'恢复遮罩':'清除遮罩';adjust.hidden=resetLayout.hidden=!o;adjust.textContent=o?.editing?'完成校准':'校准位置';position();}
   async function translate(target:ImageTarget,crop?:Region,active:()=>boolean=()=>true,inBatch=false):Promise<'done'|'skipped'>{
     if(busy.has(target))return 'skipped';
     const existing=overlayFor(target);
     if(!crop&&existing&&fullDone.has(target)){existing.host.hidden=false;if(!inBatch)report('已恢复该图译文，未重复调用 API。');refresh();return 'done';}
-    const turn=epoch,source=signature(target);busy.add(target);refresh();report(crop?'正在翻译框选区域…':'正在翻译整图对白…');
+    const turn=epoch,source=signature(target),revision=revisions.get(target)??0,ticket=Symbol();const valid=()=>turn===epoch&&(revisions.get(target)??0)===revision&&target.isConnected&&signature(target)===source;busy.set(target,ticket);refresh();report(crop?'正在翻译框选区域…':'正在翻译整图对白…');
     try{
       const cacheKey=!crop&&target instanceof HTMLImageElement?source:undefined,cached=cacheKey?fullCache.get(cacheKey):undefined;
       const dataUrl=cached?undefined:await captureImage(target,transport.fetchImage,crop);
-      if(turn!==epoch||!target.isConnected||signature(target)!==source||!active())return 'skipped';
+      if(!valid()||!active())return 'skipped';
       let bubbles:Bubble[];
       if(crop){const result=await transport.snippet(dataUrl!);bubbles=result.translated.trim()?[{...result,bbox:[crop.top*1000,crop.left*1000,(crop.top+crop.height)*1000,(crop.left+crop.width)*1000]}]:[];}
       else bubbles=cached??await transport.full(dataUrl!);
-      if(turn!==epoch||!target.isConnected||signature(target)!==source)return 'skipped';
+      if(!valid())return 'skipped';
       if(cacheKey){if(fullCache.size>=50)fullCache.delete(fullCache.keys().next().value!);fullCache.set(cacheKey,bubbles);}
       if(!bubbles.length){if(!inBatch)report('所选图片中没有识别到可读对白。');return 'done';}
       const previous=overlayFor(target);
@@ -74,8 +74,8 @@ export function installImageUI(transport:ImageTransport,report:(text:string)=>vo
       if(!crop)fullDone.add(target);
       if(!inBatch)report(crop?'局部译文已放入选区。手机点击“校准位置”调整。':`已翻译 ${bubbles.length} 个对白区域。手机点击“校准位置”后选择译文框调整。`);
       return 'done';
-    }catch(e){if(inBatch)throw e;report(e instanceof Error?e.message:'图片翻译失败。');return 'skipped';}
-    finally{busy.delete(target);refresh();}
+    }catch(e){if(!valid())return 'skipped';if(inBatch)throw e;report(e instanceof Error?e.message:'图片翻译失败。');return 'skipped';}
+    finally{if(busy.get(target)===ticket)busy.delete(target);refresh();}
   }
   function beginSnip(){if(!current||busy.has(current))return;cancelSelection?.();const target=current;report('在图片上拖动框选，Esc 取消。');cancelSelection=selectRegion(target,crop=>{cancelSelection=undefined;if(crop)void translate(target,crop);else report('框选已取消或区域过小，未调用 API。');});}
   const stopHide=()=>{clearTimeout(hideTimer);hideTimer=undefined;};
@@ -85,6 +85,7 @@ export function installImageUI(transport:ImageTransport,report:(text:string)=>vo
   const context=(e:Event)=>{lastContext=e.target instanceof HTMLImageElement||e.target instanceof HTMLCanvasElement?e.target:undefined;};
   full.addEventListener('click',()=>{cancelSelection?.();if(current)void translate(current);});snip.addEventListener('click',beginSnip);
   clear.addEventListener('click',()=>{if(current){overlayFor(current)?.toggle();refresh();}});
+  discard.addEventListener('click',()=>{if(!current)return;const target=current;cancelSelection?.();cancelSelection=undefined;revisions.set(target,(revisions.get(target)??0)+1);busy.delete(target);overlays.get(target)?.destroy();overlays.delete(target);fullDone.delete(target);fullCache.delete(signature(target));refresh();report('已清空当前图片的译文与缓存。再次翻译会重新请求 API。');});
   adjust.addEventListener('click',()=>{if(current){const editing=overlayFor(current)?.edit();report(editing?'手机：点选译文框，拖动框外的移动／缩放按钮；桌面可直接拖动框。':'校准完成。手机已隐藏调整工具。');refresh();}});
   resetLayout.addEventListener('click',()=>{if(current){overlayFor(current)?.resetLayout();report('已按默认大小恢复框位，未重复翻译。');}});
   collapse.addEventListener('click',()=>{collapsed=true;position();expand.focus();});
@@ -94,5 +95,5 @@ export function installImageUI(transport:ImageTransport,report:(text:string)=>vo
   document.addEventListener('keydown',key);
   window.visualViewport?.addEventListener('resize',position);window.visualViewport?.addEventListener('scroll',position);
   function reset(){epoch++;batch.reset();fullCache.clear();cancelSelection?.();for(const [target,o] of overlays){o.destroy();fullDone.delete(target);}overlays.clear();refresh();}
-  return {setScale:(value:number)=>{uiScale=value;setControlScale(host,value);for(const overlay of overlays.values())overlay.setUiScale(value);position();},translatePage:()=>{if(batch.state.running){batch.stop();return;}const targets=pageImages().map(target=>({target,source:signature(target)}));if(!targets.length){report('当前页面没有已加载的合适图片，请先滚动加载图片。');return;}void batch.start(targets);},setStyle:(value:OverlayStyle)=>{style=validateOverlayStyle(value);for(const o of overlays.values())o.setStyle(style);},contextTranslate:(url?:string)=>{const target=contextImage(lastContext,url);if(target){cancelSelection?.();showTarget(target);void translate(target);}else report('未找到图片，请刷新页面后重试。');},reset,destroy:()=>{stopHide();stopDrag();stopTouch();reset();host.remove();document.removeEventListener('pointerover',over,true);document.removeEventListener('contextmenu',context,true);document.removeEventListener('keydown',key);window.removeEventListener('scroll',position,true);window.removeEventListener('resize',position);window.visualViewport?.removeEventListener('resize',position);window.visualViewport?.removeEventListener('scroll',position);}};
+  return {setScale:(value:number)=>{uiScale=value;setControlScale(host,value);for(const overlay of overlays.values())overlay.setUiScale(value);position();},translatePage:()=>{if(batch.state.running){batch.stop();return;}const targets=pageImages().map(target=>({target,source:signature(target),revision:revisions.get(target)??0}));if(!targets.length){report('当前页面没有已加载的合适图片，请先滚动加载图片。');return;}void batch.start(targets);},setStyle:(value:OverlayStyle)=>{style=validateOverlayStyle(value);for(const o of overlays.values())o.setStyle(style);},contextTranslate:(url?:string)=>{const target=contextImage(lastContext,url);if(target){cancelSelection?.();showTarget(target);void translate(target);}else report('未找到图片，请刷新页面后重试。');},reset,destroy:()=>{stopHide();stopDrag();stopTouch();reset();host.remove();document.removeEventListener('pointerover',over,true);document.removeEventListener('contextmenu',context,true);document.removeEventListener('keydown',key);window.removeEventListener('scroll',position,true);window.removeEventListener('resize',position);window.visualViewport?.removeEventListener('resize',position);window.visualViewport?.removeEventListener('scroll',position);}};
 }

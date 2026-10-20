@@ -2,6 +2,7 @@
 import { complete } from './api';
 import type { Settings } from './settings';
 import { OutputFormatError } from './translation-error';
+import { copiedForeignProse } from './text-quality';
 import { EMPTY_PROFILE, terminologyPrompt, validateTranslationProfile, type TranslationProfile } from './translation-profile';
 import { EMPTY_PROMPTS, translationPrompt, validateCustomPrompts, type CustomPrompts } from './custom-prompts';
 export interface TextItem { id: string; text: string }
@@ -33,7 +34,7 @@ export async function translateText(s: Settings, input: unknown, profile:Transla
       items:{type:'object',properties:{id:{type:'string',enum:requestItems.map(item=>item.id)},translated:{type:'string'}},required:['id','translated'],additionalProperties:false}
     }},required:['translations'],additionalProperties:false}};
     const result = await complete(s, s.textModel, [
-      { role:'system', content:translationPrompt('text',s.targetLang,custom)+`Return ONLY compact JSON {"translations":[{"id":"exact input id","translated":"translation"}]}. Include every input ID exactly once, as a string, with a nonempty translation. Copy names, numbers or punctuation unchanged when no translation is needed. Never omit, merge, renumber or invent entries. No markdown or commentary.`+terminologyPrompt(reference,missing.map(i=>i.text).join('\n')) },
+      { role:'system', content:translationPrompt('text',s.targetLang,custom)+`Return ONLY compact JSON {"translations":[{"id":"exact input id","translated":"translation"}]}. Include every input ID exactly once, as a string, with a nonempty translation. Translate sentences from every source language into the target language, including mixed-language social posts. Preserve only names, identifiers, URLs, numbers or punctuation when appropriate; do not copy a foreign-language sentence merely because it contains a name or handle. Already-target-language passages may remain unchanged. Never omit, merge, renumber or invent entries. No markdown or commentary.`+terminologyPrompt(reference,missing.map(i=>i.text).join('\n')) },
       { role:'user', content:JSON.stringify(requestItems) }
     ],shape);
     // Retain array compatibility for custom OpenAI-compatible models.
@@ -45,6 +46,7 @@ export async function translateText(s: Settings, input: unknown, profile:Transla
       const id=typeof row?.id==='number'&&Number.isSafeInteger(row.id)?String(row.id):row?.id;
       if (typeof id !== 'string' || !requestItems.some(x => x.id === id) || values.has(id) || typeof row.translated !== 'string' || !row.translated.trim() || row.translated.length > 8000) throw new OutputFormatError('译文格式无效，请重试。');
       values.set(id,row.translated);
+      if(copiedForeignProse(requestItems.find(item=>item.id===id)!.text,row.translated,s.targetLang))throw new OutputFormatError('模型原样返回了日文或韩文正文，请重试或检查文本模型与提示词。');
     }
     missing.forEach((item,i)=>cache.set(key(item.text), values.get(String(i))!));
     while (cache.size > 500) cache.delete(cache.keys().next().value!);

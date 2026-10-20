@@ -11,6 +11,8 @@ import { startPixivProxy } from './pixiv-test-proxy.mjs';
 import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-scenario.mjs';
 import { serveToolbarFixture, toolbarBubbles, checkImageToolbar } from './image-toolbar-scenario.mjs';
 import { serveMobileFixture, checkComposer } from './mobile-fixtures.mjs';
+import { serveSocialFixture, socialTranslations, checkSocial } from './social-scenario.mjs';
+import { checkImageClear } from './image-clear-scenario.mjs';
 import { serveBatchFixture, checkBatch } from './image-batch-scenario.mjs';
 const recovery=recoveryMock();
 let toolbarTesting=false;
@@ -23,7 +25,7 @@ let textRequests=0,imageRequests=0,snippetRequests=0,downloads=0;
 const completions=[];
 const server=createServer(async(req,res)=>{
   try{
-    if(serveToolbarFixture(req,res)||serveMobileFixture(req,res)||serveBatchFixture(req,res))return;
+    if(serveToolbarFixture(req,res)||serveMobileFixture(req,res)||serveBatchFixture(req,res)||serveSocialFixture(req,res))return;
     if(req.url==='/text-recovery'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(recoveryPage);return;}
     if(req.url==='/cards'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/cards.html'));return;}
     if(req.url==='/v1/models'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:[{id:'mock-vision',architecture:{input_modalities:['image','text']}}]}));return;}
@@ -31,7 +33,7 @@ const server=createServer(async(req,res)=>{
       let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);completions.push(body);assert.equal(req.headers.authorization,'Bearer mock-key');
       const recoveryReply=recovery.reply(body);if(recoveryReply){res.setHeader('Content-Type','application/json');res.end(recoveryReply);return;}
       const isImage=Array.isArray(body.messages[1].content),isSnippet=isImage&&body.messages[1].content[0].text.includes('框内');isSnippet?snippetRequests++:isImage?imageRequests++:textRequests++;
-      const result=isSnippet?{original:'Test crop',translated:'Firefox 局部译文'}:isImage?(toolbarTesting?toolbarBubbles:[{original:'Hello friend',translated:'你好，朋友！一起阅读吧。',bbox:[100,90,320,430]},{original:'A new world',translated:'新世界正在等待我们。',bbox:[560,560,780,920]}]):JSON.parse(body.messages[1].content).map(i=>({id:i.id,translated:'中文译文：'+i.text}));
+      const result=isSnippet?{original:'Test crop',translated:'Firefox 局部译文'}:isImage?(toolbarTesting?toolbarBubbles:[{original:'Hello friend',translated:'你好，朋友！一起阅读吧。',bbox:[100,90,320,430]},{original:'A new world',translated:'新世界正在等待我们。',bbox:[560,560,780,920]}]):JSON.parse(body.messages[1].content).map(i=>({id:i.id,translated:socialTranslations[i.text]??'中文译文：'+i.text}));
       res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(result)}}]}));return;
     }
     if(req.url==='/manga.png'){downloads++;res.setHeader('Content-Type','image/png');res.end(await readFile('tests/fixtures/manga.png'));return;}
@@ -204,5 +206,8 @@ try{
   await writeFile('evidence/selection-firefox.png',Buffer.from(await command('GET',`/session/${session}/screenshot`),'base64'));
   await run("document.querySelector('[data-bl-owned=selection]').shadowRoot.querySelector('#close').click()");assert.equal(await run("return !!document.querySelector('[data-bl-owned=selection]')"),false);
   console.log('PASS Firefox native selection context menu: exact selection only, separate result, no page translation and close.');
+  await checkSocial({go:()=>go(`${base}/social`),run,wait,requests:()=>completions.filter(r=>typeof r.messages[1].content==='string')});
+  toolbarTesting=false;await go(`${base}/manga`);
+  await checkImageClear({run,wait,move:(x,y)=>pointer([moveTo(x,y)]),drag:(x,y,dx,dy)=>pointer([moveTo(x,y),{type:'pointerDown',button:0},moveTo(x+dx,y+dy),{type:'pointerUp',button:0}]),calls:()=>imageRequests+snippetRequests});
   console.log(`PASS Firefox ${created.capabilities.browserVersion} MV3: configuration, models, lazy text, CORS image, bubbles, toggle, real pointer snip drag and precise crop overlay; ${textRequests} text + ${imageRequests} full + ${snippetRequests} snip mock requests.`);
 }catch(e){console.error('Firefox UI state:',await run("return {url:location.href,optionsStatus:document.querySelector('#status')?.textContent,status:document.querySelector('[data-bl-owned=controls]')?.shadowRoot.querySelector('p')?.textContent,imageButton:document.querySelector('[data-bl-owned=image-button]')?.shadowRoot.querySelector('button')?.textContent}").catch(()=>null),{textRequests,imageRequests,downloads,pixiv:pixiv.requests});throw e;}finally{if(session)await command('DELETE',`/session/${session}`).catch(()=>{});driver.kill();await pixiv.close();await new Promise(r=>server.close(r));}

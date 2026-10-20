@@ -9,6 +9,8 @@ import { startPixivProxy } from './pixiv-test-proxy.mjs';
 import { recoveryPage, recoveryMock, checkTextRecovery } from './text-recovery-scenario.mjs';
 import { serveToolbarFixture, toolbarBubbles, checkImageToolbar } from './image-toolbar-scenario.mjs';
 import { serveMobileFixture, checkComposer } from './mobile-fixtures.mjs';
+import { serveSocialFixture, socialTranslations, checkSocial } from './social-scenario.mjs';
+import { checkImageClear } from './image-clear-scenario.mjs';
 import { serveBatchFixture, checkBatch } from './image-batch-scenario.mjs';
 import { checkNativePopup } from './chrome-popup-scenario.mjs';
 const recovery=recoveryMock();
@@ -27,7 +29,7 @@ const translations={
 };
 const server=createServer(async(req,res)=>{
   try {
-    if(serveToolbarFixture(req,res)||serveMobileFixture(req,res)||serveBatchFixture(req,res))return;
+    if(serveToolbarFixture(req,res)||serveMobileFixture(req,res)||serveBatchFixture(req,res)||serveSocialFixture(req,res))return;
     if(req.url==='/text-recovery'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(recoveryPage);return;}
     if(req.url==='/cards'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/cards.html'));return;}
     if(req.url==='/manga.png'||req.url==='/protected.png'){
@@ -46,7 +48,7 @@ const server=createServer(async(req,res)=>{
       requests.push(body);
       assert.equal(req.headers.authorization,'Bearer mock-key');
       const items=JSON.parse(body.messages[1].content);
-      res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(items.map(i=>({id:i.id,translated:translations[i.text]??'动态译文：'+i.text})))}}]}));return;
+      res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(items.map(i=>({id:i.id,translated:socialTranslations[i.text]??translations[i.text]??'动态译文：'+i.text})))}}]}));return;
     }
     res.setHeader('Content-Type','text/html; charset=utf-8');res.end(await readFile('tests/fixtures/text.html'));
   } catch(e) {res.statusCode=500;res.end(String(e));}
@@ -266,6 +268,9 @@ try {
   assert.equal(JSON.parse(requests.at(-1).messages[1].content)[0].text,selected);assert.ok(requests.length<=selectionCalls+1);
   assert.equal(await page.locator('.bl-translation').count(),0);await page.screenshot({path:'evidence/selection-chrome.png'});
   await page.locator('[data-bl-owned=selection]').locator('#close').click();assert.equal(await page.locator('[data-bl-owned=selection]').count(),0);
+  await checkSocial({go:()=>page.goto(`${base}/social`),run:script=>page.evaluate(s=>new Function(s)(),script),wait:script=>page.waitForFunction(s=>new Function(s)(),script),requests:()=>requests});
+  toolbarTesting=false;await page.goto(`${base}/manga`);
+  await checkImageClear({run:script=>page.evaluate(s=>new Function(s)(),script),wait:script=>page.waitForFunction(s=>new Function(s)(),script),move:(x,y)=>page.mouse.move(x,y),drag:async(x,y,dx,dy)=>{await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+dx,y+dy,{steps:5});await page.mouse.up();},calls:()=>imageRequests.length+snippetRequests.length});
   console.log('PASS Chromium popup: 10 document reloads, fixed width/readable settings/no horizontal overflow; selection message uses existing API and leaves page translation off.');
   console.log('PASS customization: 75/150/100% live controls, persistence, prompt cache invalidation, text/image/snippet requests and restore defaults.');
   console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');

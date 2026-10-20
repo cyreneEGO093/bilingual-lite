@@ -14,9 +14,9 @@
 
 双语轻译是一款轻量网页与漫画翻译扩展。无需安装本地 OCR 或 Python，使用您自己配置的 OpenAI 兼容 API 服务。
 
-- 网页阅读：滚动到可见段落时翻译，也可分批翻译当前已加载的整页内容。可切换双语或仅译文；异常批次保留原文，支持单独重试。
+- 网页阅读：滚动到可见段落时翻译，也可分批翻译当前已加载的整页内容。可切换双语或仅译文；异常批次保留原文，支持单独重试；X 优先提取帖文正文，减少元数据混入。
 - 选中文本：桌面选中网页文字后右键翻译，在独立结果窗查看原文与译文；不必开启整页翻译。
-- 图片与漫画：桌面支持右键翻译单张图片、一键分批翻译整页已加载图片，并可停止后续任务。桌面悬停、手机长按图片打开整图／框选工具。译文覆盖层可移动、缩放，背景透明度和默认大小可调整；手机通过“校准位置”显示框外调整工具，阅读时隐藏手柄。
+- 图片与漫画：桌面支持右键翻译单张图片、一键分批翻译整页已加载图片，并可停止后续任务。桌面悬停、手机长按图片打开整图／框选工具。译文覆盖层可移动、缩放，背景透明度和默认大小可调整；手机通过“校准位置”显示框外调整工具，阅读时隐藏手柄。可通过“清空译文”删除当前图片的整图／框选结果与缓存。
 - 浮动工具可拖动、收起并调整大小；所有状态都不自动避让网页内容或在输入时自动收起，仅保留屏幕边界限制。
 - 自定义提示词：分别设置网页、整图和框选翻译要求，支持恢复默认。必要的 JSON 返回格式由程序保留。
 - 专有名词：填写作品背景和自定义术语，帮助保持角色、技能和职业译名一致。
@@ -30,7 +30,7 @@
 
 项目主页：https://github.com/cyreneEGO093/bilingual-lite
 
-本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.6.1/bilingual-lite-0.6.1-source.zip
+本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.6.2/bilingual-lite-0.6.2-source.zip
 
 ## Other submission fields
 
@@ -38,19 +38,31 @@
 - Platform: desktop Firefox and Firefox for Android; verify Android compatibility derived from the manifest's `gecko_android` declaration.
 - Icon: `assets/icon-512.png` or `public/icons/128.png` (upload separately).
 - Privacy policy: copy the complete `PRIVACY.md` text into AMO's privacy-policy field.
-- Source attachment: `bilingual-lite-0.6.1-source.zip`; build/review instructions: `BUILDING.md`.
+- Source attachment: `bilingual-lite-0.6.2-source.zip`; build/review instructions: `BUILDING.md`.
 - Homepage: https://github.com/cyreneEGO093/bilingual-lite
 - Support: https://github.com/cyreneEGO093/bilingual-lite/issues (no response or maintenance commitment).
 - Payment disclosure: API service may require a paid account; the extension is free.
 
-## Reviewer notes for 0.6.1
+## Reviewer notes for 0.6.2
 
-This updates the existing add-on and retains its Gecko ID and Android compatibility. Version 0.6.1 fixes a suspected action-popup sizing feedback problem: the popup body no longer uses its own initial viewport as a maximum width. Initial HTML supplies a visible loading/fallback link; section initialization runs independently, reopening resets scrolling, and the complete Options page is accessible from the popup.
+This updates the existing add-on and retains its Gecko ID, permissions and Android compatibility. It changes webpage text extraction to prefer X-style `data-testid="tweetText"` bodies over entire tweet cards, excluding author/date/action metadata. It handles short replies, newly hydrated bodies, reused DOM nodes and removed translation siblings. Removed translations are restored from completed local results without new inference; responses for changed sources are ignored.
 
-The new desktop selection context menu uses the browser-provided `selectionText` snapshot, including selections in child frames, and displays the result in a separate top-page panel. It translates only the explicit selection (maximum 6000 characters, serial chunks of at most 1200), without enabling page translation. It reuses the existing text API, model, glossary, custom text prompt, cache and request limits. Failures allow manual retry of unfinished chunks; closing cancels subsequent chunks and ignores late results. Already-sent API calls can still complete. Model output is rendered as text, never HTML. No new permissions, dependencies, analytics or remote executable code. Privacy text is updated for selection transmission.
+For a Chinese target only, a conservative check rejects exact copies of sufficiently long Japanese/Korean prose instead of displaying and caching them as successful translations. Failures use the existing manual-retry workflow; this does not automatically retry or add API calls and is not comprehensive language detection. User model selections and custom prompts are retained.
 
-Attach `bilingual-lite-0.6.1-source.zip`. With Node.js 24 and npm 11, extract into an empty directory and run `npm ci`, `npm test`, `npm run build`, `npm run lint:firefox`, then `npm run zip`. Firefox output: `dist/firefox-mv3/` and `dist/bilingual-lite-0.6.1-firefox.zip`. Compare extracted files rather than ZIP timestamps. See `BUILDING.md` and `store/REPRODUCIBILITY.json` for details.
+The image toolbar adds “清空译文” (discard translations), separate from the existing hide/restore toggle. It deletes the current image's full/crop overlays, edited positions and matching in-page result cache; other images' displayed results remain. Late results for that image are ignored and its pending entry in the current image batch is skipped. Clearing makes no API request. Translating again may incur charges, and already-sent requests may still complete. It cannot delete provider-side records. Model output remains text-only. No new dependencies, telemetry or remote executable code.
 
-Account-free review: run `node scripts/reviewer-server.mjs`, set API Endpoint to `http://127.0.0.1:8787/v1`, clear API Key, save, and open `http://127.0.0.1:8787/`. Select a sentence, right-click and choose “双语轻译：翻译选中文本”; check the result panel, original text, Close/Esc and that page translation remains off. Open/close the extension action popup repeatedly, scroll its settings and test “打开完整设置页”. `/manga` and `/batch` cover retained image features. All responses are synthetic; no paid account or bundled API key is needed.
+Attach `bilingual-lite-0.6.2-source.zip`. With Node.js 24 and npm 11, extract into an empty directory and run:
 
-Validation: 104 automated tests, Chrome 153 and Firefox 155 extension regressions, 10 native popup opens per browser, Firefox native selection context menu, and zero Mozilla lint errors/warnings/notices. Chrome tests inspect its native popup via CDP and exercise selection message/network/UI integration. Android's full emulator validation was last completed for 0.6.0 (Firefox Android 157 / Android 14); it was not rerun for this desktop-focused update. The intermittent popup issue was not reproduced on the user's exact profile, so the change is a targeted mitigation rather than a guarantee.
+```text
+npm ci
+npm test
+npm run build
+npm run lint:firefox
+npm run zip
+```
+
+Firefox output: `dist/firefox-mv3/` and `dist/bilingual-lite-0.6.2-firefox.zip`. Compare extracted files rather than ZIP timestamps. See `BUILDING.md` and `store/REPRODUCIBILITY.json`.
+
+Account-free review: run `node scripts/reviewer-server.mjs`, configure API Endpoint `http://127.0.0.1:8787/v1` with an empty API Key, and open `http://127.0.0.1:8787/social`. Test scrolling/whole-page and bilingual/translated-only modes on the synthetic posts. On `/manga`, translate the image, select a crop, click “清空译文”, then translate again. “清除遮罩／恢复遮罩” retains its temporary-hide behavior. `/batch` covers whole-page images. All responses are synthetic; no paid account or bundled API key is required.
+
+Validation: 116 automated tests, Chrome 153 and Firefox 155 extension regressions, and zero Mozilla lint errors/warnings/notices. New tests cover body-only requests, dynamic updates, removed translations, clearing full/crop results, late-response invalidation and new inference after clearing. The real X account/page was not used. Separately, the actual text client completed two live requests to the configured default model using synthetic Korean/Japanese text, with default and synthetic custom prompts. Both reported zero reasoning tokens; total API-reported cost was $0.000220584. See `store/LIVE-TEXT-CHECK.json`; no credentials or private samples are included. These limited tests do not guarantee all content or X layouts. Android's last full emulator validation remains v0.6.0 (Firefox Android 157 / Android 14); this update was not rerun on Android. Source and installation packages were rebuilt independently and compared byte-for-byte.

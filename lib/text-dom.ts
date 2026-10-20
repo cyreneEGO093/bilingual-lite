@@ -4,22 +4,32 @@ import { hideOriginal } from './text-view';
 import type { TextScope } from './text-scope';
 import { OutputFormatError } from './translation-error';
 const SELECTOR = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,figcaption,td,th,article';
+// X uses div/span bodies. Prefer the explicit body over the enclosing social
+// card, whose author, time and action counters are not part of the passage.
+const POST_BODY = '[data-testid="tweetText"]';
+const POST_CARD = '[data-testid="tweet"]';
 const EXCLUDE = '[data-bl-owned],script,style,noscript,pre,code,textarea,input,select,button,nav,header,footer,[contenteditable]:not([contenteditable="false"]),[translate="no"],[aria-hidden="true"],[hidden]';
 export function textOf(element: HTMLElement): string {
-  const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT),parts:string[]=[];
+  const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT),parts:string[]=[];
   let node:Node|null;
   while((node=walker.nextNode())){
+    if(node.nodeType===Node.ELEMENT_NODE&&!(node instanceof HTMLBRElement))continue;
     let excluded=false;
-    for(let parent=node.parentElement;parent;parent=parent.parentElement){
-      if(parent.matches(EXCLUDE)&&parent.dataset.blOwned!=='source-wrapper'){excluded=true;break;}
+    for(let parent=node instanceof Element?node:node.parentElement;parent;parent=parent.parentElement){
+      if(parent.matches(EXCLUDE)&&parent.getAttribute('data-bl-owned')!=='source-wrapper'){excluded=true;break;}
       if(parent===element)break;
     }
-    if(!excluded)parts.push(node.textContent??'');
+    if(!excluded)parts.push(node instanceof HTMLBRElement?'\n':node.textContent??'');
   }
-  return parts.join('').replace(/\s+/g,' ').trim();
+  return parts.join('').replace(/[^\S\n]+/g,' ').replace(/ *\n */g,'\n').trim();
 }
 export function candidates(root: ParentNode = document): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(SELECTOR)).filter(el => !el.closest(EXCLUDE) && !el.querySelector(SELECTOR) && textOf(el).length >= 3);
+  return Array.from(root.querySelectorAll<HTMLElement>(`${SELECTOR},${POST_BODY}`)).filter(el => {
+    if(el.closest(EXCLUDE))return false;
+    if(el.matches(POST_BODY))return !el.parentElement?.closest(POST_BODY)&&/\p{L}/u.test(textOf(el));
+    if(el.closest(`${POST_BODY},${POST_CARD}`)||el.closest('article')?.querySelector(POST_BODY))return false;
+    return !el.querySelector(`${SELECTOR},${POST_BODY}`)&&textOf(el).length>=3;
+  });
 }
 export function chunks(text: string): string[] {
   const result: string[] = [];
@@ -61,16 +71,20 @@ export class TextTranslator {
       this.schedule();
     }, { threshold:0.01 });
     this.mutations = new MutationObserver(entries => {
-      if (entries.every(e => (e.target as Element).closest?.('[data-bl-owned]') || (e.type === 'childList' && [...e.addedNodes,...e.removedNodes].every(n => n instanceof Element && n.hasAttribute('data-bl-owned'))))) return;
-      clearTimeout(this.scanTimer); this.scanTimer = setTimeout(()=>this.scan(),300);
+      if (entries.every(e => (e.target instanceof Element?e.target:e.target.parentElement)?.closest('[data-bl-owned]') || (e.type === 'childList' && [...e.addedNodes,...e.removedNodes].every(n => n instanceof Element && n.hasAttribute('data-bl-owned'))))) {
+        // A framework may remove our sibling translation while keeping its source.
+        if(!entries.some(e=>[...e.removedNodes].some(n=>n instanceof Element&&n.matches('.bl-translation[data-bl-owned]'))))return;
+      }
+      this.scheduleScan();
     });
   }
   start() {
     if (this.enabled) return; this.enabled=true; this.epoch++; this.report(this.scope==='page'?'整页翻译已开启，将分批处理当前已加载的段落。':'滚动翻译已开启，只发送可见段落。');
-    this.scan(); this.mutations.observe(document.body,{childList:true,subtree:true,characterData:true});
+    this.scan(); this.mutations.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['data-testid','lang','hidden','aria-hidden','translate']});
   }
   stop() {
     this.enabled=false; this.epoch++; clearTimeout(this.timer); clearTimeout(this.scanTimer);
+    this.scanTimer=undefined;
     this.observer.disconnect(); this.mutations.disconnect(); this.visible.clear();
     for (const state of this.records.values()) {state.restore?.();state.node?.remove();} this.records.clear();this.onlyTranslated=false;this.paused=false;this.consecutiveFailures=0;
   }
@@ -94,24 +108,30 @@ export class TextTranslator {
   }
   private scan() {
     if (!this.enabled) return;
+    const wanted=new Set(candidates());
     for (const [el,state] of this.records) {
-      // Remove our child translation before comparing source text in list/table cells.
+      // textOf excludes our child translation when comparing list/table sources.
       const own = state.node; const text = textOf(el);
-      if (!el.isConnected || text !== state.source) { state.restore?.();own?.remove(); this.records.delete(el); this.visible.delete(el); this.observer.unobserve(el); }
+      if (!el.isConnected || !wanted.has(el) || text !== state.source) { state.restore?.();own?.remove(); this.records.delete(el); this.visible.delete(el); this.observer.unobserve(el); }
+      else if(own&&(!own.isConnected||(['LI','TD','TH'].includes(el.tagName)?own.parentElement!==el:own.previousElementSibling!==el))){
+        state.restore?.();own.remove();state.node=renderTranslation(el,state.translated.join(' '));state.restore=this.onlyTranslated?hideOriginal(el,state.node):undefined;
+      }
     }
-    for (const el of candidates()) {
+    for (const el of wanted) {
       if (this.records.has(el)) continue;
       const source=textOf(el), parts=chunks(source);
       this.records.set(el,{source,parts,translated:[],inflight:new Set(),failed:new Set()}); this.observer.observe(el);
     }
     this.schedule();
   }
+  private scheduleScan(){if(!this.enabled||this.scanTimer!==undefined)return;this.scanTimer=setTimeout(()=>{this.scanTimer=undefined;this.scan();},300);}
   private schedule() { clearTimeout(this.timer); if (this.enabled && !this.paused) this.timer=setTimeout(()=>void this.flush(),250); }
   private async flush() {
     if (!this.enabled || this.paused || this.busy) return;
     const work: { el:HTMLElement; state:RecordState; part:number; id:string; text:string }[]=[]; let size=0;
     for (const el of this.scope==='page'?this.records.keys():this.visible) {
       const state=this.records.get(el); if (!state || !el.isConnected || getComputedStyle(el).visibility==='hidden' || el.getClientRects().length===0) continue;
+      if(textOf(el)!==state.source){this.scheduleScan();continue;}
       for (let part=0;part<state.parts.length;part++) {
         const text=state.parts[part]!;
         if (state.translated[part] !== undefined || state.inflight.has(part) || state.failed.has(part)) continue;
@@ -129,6 +149,7 @@ export class TextTranslator {
       this.consecutiveFailures=0;
       for (const w of work) {
         if (this.records.get(w.el)!==w.state || !w.el.isConnected) continue;
+        if(textOf(w.el)!==w.state.source){this.scheduleScan();continue;}
         const translated=result.find(r=>r.id===w.id)!.translated;
         w.state.translated[w.part]=translated;
         if (w.state.parts.every((_,i)=>w.state.translated[i]!==undefined)) {w.state.node=renderTranslation(w.el,w.state.translated.join(' '));if(this.onlyTranslated)w.state.restore=hideOriginal(w.el,w.state.node);}
@@ -143,7 +164,7 @@ export class TextTranslator {
         this.consecutiveFailures++;
         this.paused=!(e instanceof OutputFormatError) || this.consecutiveFailures>=3;
         if(e instanceof OutputFormatError){
-          this.report(this.paused?'连续 3 批译文格式异常，已暂停后续请求并保留现有译文。可点击“重试并继续”。':'本批译文格式异常，已保留原文并继续其他段落。可点击“重试未完成”。');
+          this.report(`${e.message} `+(this.paused?'连续 3 批译文未通过校验，已暂停后续请求并保留现有译文。可点击“重试并继续”。':'已保留原文并继续其他段落。可点击“重试未完成”。'));
         }else this.report(`${e instanceof Error?e.message:'翻译失败。'} 已暂停并保留现有译文，可点击“重试并继续”。`);
       }
     } finally { this.busy=false; work.forEach(w=>w.state.inflight.delete(w.part)); this.schedule(); }
