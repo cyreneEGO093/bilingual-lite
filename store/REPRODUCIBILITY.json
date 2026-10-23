@@ -1,15 +1,15 @@
 {
-  "version": "0.6.2",
-  "verifiedAt": "2026-10-20",
+  "version": "0.6.3",
+  "verifiedAt": "2026-10-23",
   "chrome": {
     "files": 18,
     "byteIdentical": true,
     "sha256": {
       "assets/settings-ui-DZZVFlfA.css": "707bff3ea98843c27be04e96db83c9e27b99609c8260d0ec54f785b2b007c5db",
-      "background.js": "04e67d7ba1f3e0b7da87fead76b76894513377f0cd5adf0846da0aea098a5a04",
-      "chunks/options-Dq1jGJ5K.js": "4aa05e5ecc931af1b11b687255d845a9c724504b4fad9cd0c99e02da35f97d09",
-      "chunks/popup-3bCW_RSd.js": "72344fe8e23821926f6c695d040ed0ed0b789dfd487cdc79735d270f35aedd97",
-      "chunks/settings-ui-BIsbT5U2.js": "3677ae7e8d32622dfb5a0dd133b885f61aab24c7d65a408ecea0e9b45ac27afb",
+      "background.js": "c19f3908df0b3eb77d8b72536c6e918128025208e6885274fc712129fef520ae",
+      "chunks/options-65RUx1Oq.js": "56891ae8b30b16bc2972ef7be495a5f9b30c853ee1ff78c62221fdcd0e7bef67",
+      "chunks/popup-DJgszfVo.js": "208c88ea01ae870e863165221839f5b1b292f27bbc0a2a58a84afc5eeb7d66ca",
+      "chunks/settings-ui-t242KoBa.js": "3ff301e4a54ad12cf9f803d5d33634e96230337ce9d0fdb163c9aaaa894fc2b3",
       "content-scripts/content.css": "1a74e2eb7ad6d0c3def5117fad9e396333bd828c2976ec14aa0040a052adf4c1",
       "content-scripts/content.js": "0d31023ad57ac93ad7926e80f310021ab2e3897b4e7587b6325723247b5845a3",
       "icons/128.png": "af8a113470c27209ef92feefc14c7586be89d585347da358dae9d3cbd7a3bb5f",
@@ -18,11 +18,11 @@
       "icons/48.png": "83564a39ffddfbdac62949c5ebcf4ef0a9cdd904b155d99cb922f5cdadfd5b12",
       "icons/96.png": "4d5446f3b1140fcd26f3ec49e4a4197ac62b8b9e1e9c4ac6731dc8f61aad392e",
       "legal/LICENSE.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
-      "legal/privacy.html": "0268d95070b77bfd87f46244b98a4f8680e81cbdaf6a6cbb0b457dd93bc0489f",
+      "legal/privacy.html": "145a94786f6b6d5d5726ca8aadf0a5013f9d9da0cf22f065b7b2e073ba6da8eb",
       "legal/THIRD_PARTY_NOTICES.txt": "24ca5210e4288894be7c8f7570c48b81357bbdb0e19bdc3bb2b8ec378339da57",
-      "manifest.json": "bd746faa752230c3e0e140e2f1f1528235779693e124301f9993b1aec3947597",
-      "options.html": "e2e48dc36ac6800bb70741ba120c30d95992a66f73fc3b3e7998369d3f5a03dc",
-      "popup.html": "8ded1b054b6fef15767cb721343783c25d679f162e4dd9bedbecc03bf0a66171"
+      "manifest.json": "f2d742d8c087daa5a9203068eb78a4c731255e3abaae3fa30dece11c4274dfe8",
+      "options.html": "74f096519b10effebddb282a9ad190e6bb489ecadcd3f7f665914e4ed9e1f395",
+      "popup.html": "b4302d8056b9021cc849ff2f20a7bbf138d0674864c481f5f993d6b45a7ca8e5"
     }
   },
   "firefox": {
@@ -30,10 +30,10 @@
     "byteIdentical": true,
     "sha256": {
       "assets/settings-ui-DZZVFlfA.css": "707bff3ea98843c27be04e96db83c9e27b99609c8260d0ec54f785b2b007c5db",
-      "background.js": "04e67d7ba1f3e0b7da87fead76b76894513377f0cd5adf0846da0aea098a5a04",
-      "chunks/options-Dq1jGJ5K.js": "4aa05e5ecc931af1b11b687255d845a9c724504b4fad9cd0c99e02da35f97d09",
-      "chunks/popup-3bCW_RSd.js": "72344fe8e23821926f6c695d040ed0ed0b789dfd487cdc79735d270f35aedd97",
-      "chunks/settings-ui-BIsbT5U2.js": "3677ae7e8d32622dfb5a0dd133b885f61aab24c7d65a408ecea0e9b45ac27afb",
+      "background.js": "c19f3908df0b3eb77d8b72536c6e918128025208e6885274fc712129fef520ae",
+      "chunks/options-65RUx1Oq.js": "56891ae8b30b16bc2972ef7be495a5f9b30c853ee1ff78c62221fdcd0e7bef67",
+      "chunks/popup-DJgszfVo.js": "208c88ea01ae870e863165221839f5b1b292f27bbc0a2a58a84afc5eeb7d66ca",
+      "chunks/settings-ui-t242KoBa.js": "3ff301e4a54ad12cf9f803d5d33634e96230337ce9d0fdb163c9aaaa894fc2b3",
       "content-scripts/content.css": "1a74e2eb7ad6d0c3def5117fad9e396333bd828c2976ec14aa0040a052adf4c1",
       "content-scripts/content.js": "0d31023ad57ac93ad7926e80f310021ab2e3897b4e7587b6325723247b5845a3",
       "icons/128.png": "af8a113470c27209ef92feefc14c7586be89d585347da358dae9d3cbd7a3bb5f",
@@ -42,11 +42,11 @@
       "icons/48.png": "83564a39ffddfbdac62949c5ebcf4ef0a9cdd904b155d99cb922f5cdadfd5b12",
       "icons/96.png": "4d5446f3b1140fcd26f3ec49e4a4197ac62b8b9e1e9c4ac6731dc8f61aad392e",
       "legal/LICENSE.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
-      "legal/privacy.html": "0268d95070b77bfd87f46244b98a4f8680e81cbdaf6a6cbb0b457dd93bc0489f",
+      "legal/privacy.html": "145a94786f6b6d5d5726ca8aadf0a5013f9d9da0cf22f065b7b2e073ba6da8eb",
       "legal/THIRD_PARTY_NOTICES.txt": "24ca5210e4288894be7c8f7570c48b81357bbdb0e19bdc3bb2b8ec378339da57",
-      "manifest.json": "12bea12b0662fbe32c71c0be42c8ca8f7fae2d37c34ca5d03ab5248bb0230ada",
-      "options.html": "e2e48dc36ac6800bb70741ba120c30d95992a66f73fc3b3e7998369d3f5a03dc",
-      "popup.html": "8ded1b054b6fef15767cb721343783c25d679f162e4dd9bedbecc03bf0a66171"
+      "manifest.json": "32697cb569700b57ce52894a26f1357163fcf6f497e55e9b436da72e3b3e1006",
+      "options.html": "74f096519b10effebddb282a9ad190e6bb489ecadcd3f7f665914e4ed9e1f395",
+      "popup.html": "b4302d8056b9021cc849ff2f20a7bbf138d0674864c481f5f993d6b45a7ca8e5"
     }
   }
 }

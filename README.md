@@ -8,7 +8,7 @@
 
 轻量的网页与漫画翻译扩展，支持 **Chrome / Firefox Manifest V3**。使用自己的 API Key，自选 OpenAI 兼容服务和模型。原生 TypeScript / CSS，无 UI 框架，无需安装 Python 或本地 OCR。
 
-[Firefox 商店安装](https://addons.mozilla.org/zh-CN/firefox/addon/bilingual-lite/) · [下载 v0.6.2](https://github.com/cyreneEGO093/bilingual-lite/releases/tag/v0.6.2) · [详细使用指南](USAGE.md) · [隐私说明](PRIVACY.md) · [反馈问题](https://github.com/cyreneEGO093/bilingual-lite/issues)
+[Firefox 商店安装](https://addons.mozilla.org/zh-CN/firefox/addon/bilingual-lite/) · [下载 v0.6.3](https://github.com/cyreneEGO093/bilingual-lite/releases/tag/v0.6.3) · [详细使用指南](USAGE.md) · [隐私说明](PRIVACY.md) · [反馈问题](https://github.com/cyreneEGO093/bilingual-lite/issues)
 
 > Firefox 版已在 Mozilla 附加组件商店上架。GitHub 的 Firefox ZIP 用于临时加载和提交审核，未签名；商店版本可能晚于 GitHub，请以商店显示的版本号为准。扩展本身免费；所选 API 服务可能按用量收费。
 
@@ -26,6 +26,7 @@
 - **移动端操作**：Firefox Android 支持长按图片打开工具栏；翻译入口可拖动、收起，不自动避让网页内容，仅限制在可见屏幕内。
 - **界面大小**：设置中可将翻译入口、展开面板和图片工具调整为 75%–150%，立即同步。
 - **自定义提示词**：分别编辑网页、整图和框选翻译要求，支持恢复默认；程序保留必要的 JSON 格式。
+- **输出 Token 上限**：设置中自定义每次请求上限（128–65536，默认 1500）；长文本可尝试 4096／8192，适用于文本和图片。费用及等待时间可能增加，仍受模型限制。
 - **BYOK 配置**：自选服务地址、文本／图片模型与目标语言；支持兼容的本机回环服务。
 
 ### 交互预览
@@ -46,10 +47,10 @@ Android 模拟器：输入时保留展开状态，工具可手动拖动。
 
 | 文件 | 用途 |
 |---|---|
-| `bilingual-lite-0.6.2-chrome.zip` | Chrome 安装文件；Edge 可按下述方法加载同一包 |
-| `bilingual-lite-0.6.2-firefox.zip` | Firefox 临时加载／商店提交文件，未签名 |
-| `bilingual-lite-0.6.2-source.zip` | 完整对应源码、锁文件、构建材料与第三方许可 |
-| `bilingual-lite-0.6.2-SHA256.txt` | 下载文件的 SHA-256 校验值 |
+| `bilingual-lite-0.6.3-chrome.zip` | Chrome 安装文件；Edge 可按下述方法加载同一包 |
+| `bilingual-lite-0.6.3-firefox.zip` | Firefox 临时加载／商店提交文件，未签名 |
+| `bilingual-lite-0.6.3-source.zip` | 完整对应源码、锁文件、构建材料与第三方许可 |
+| `bilingual-lite-0.6.3-SHA256.txt` | 下载文件的 SHA-256 校验值 |
 
 安装包仅含运行代码、图标以及必要的许可和隐私资源，不含交付说明、测试样图或 API Key。
 
@@ -65,7 +66,7 @@ Chrome 已完成实际扩展测试；Edge 使用相同的 Chromium 包，本版�
 
 日常使用请从 [Mozilla 附加组件商店](https://addons.mozilla.org/zh-CN/firefox/addon/bilingual-lite/) 安装，后续已审核版本可通过商店更新。
 
-0.6.2 沿用 0.3.2 的扩展标识。0.3.0 / 0.3.1 使用旧标识，设置无法自动迁移，请重新配置。
+0.6.3 沿用 0.3.2 的扩展标识。0.3.0 / 0.3.1 使用旧标识，设置无法自动迁移，请重新配置。
 
 开发或审核时可临时加载 GitHub 安装包：
 
@@ -129,7 +130,7 @@ npm run zip
 
 构建目录为 `dist/chrome-mv3/` 和 `dist/firefox-mv3/`。开发模式使用 `npm run dev` 或 `npm run dev:firefox`。构建和自动测试无需 API Key；付费模型测试不会自动执行。
 
-v0.6.2 完成 116 项自动测试、桌面 Chrome 153 / Firefox 155 的实际扩展回归。新增合成 X 帖文结构的整页／滚动、动态换帖、仅译文模式和重绘恢复测试；验证图片整图／框选结果清空与重新请求。保留原生弹窗和右键菜单回归。Mozilla 检查为 0 errors / 0 warnings / 0 notices。Android 14 模拟器 / Firefox 157 的完整验收记录来自 v0.6.0，本次未重跑移动端。浏览器回归使用本地模拟 API；另使用默认文本模型真实完成两批合成日／韩文测试（默认及测试用自定义提示词各一批），思考 Token 均为 0，API 报告费用合计 $0.000220584。未登录真实 X 页面，不能证明所有 X 页面均已修复。详见 `store/LIVE-TEXT-CHECK.json`。
+v0.6.3 完成 128 项自动测试和 Chrome 153 / Firefox 155 扩展回归；Chrome 验证保存的 4096 上限实际传入文本、整图和框选请求。Mozilla 检查为 0 errors / 0 warnings / 0 notices。本次仅使用本地模拟 API，未产生付费推理；历史真实模型检查见 `store/LIVE-TEXT-CHECK.json`（v0.6.2）。Android 完整验收仍来自 v0.6.0，本次未重跑。
 
 - [构建复现与无需付费 API 的本地验收](BUILDING.md)
 - [来源、许可证与发布检查](COMPLIANCE.md)
@@ -143,4 +144,4 @@ v0.6.2 完成 116 项自动测试、桌面 Chrome 153 / Firefox 155 的实际扩
 
 项目以 **GPL-3.0-only** 发布，完整许可见 [LICENSE](LICENSE)，版权和适用范围见 [COPYRIGHT.md](COPYRIGHT.md)。第三方运行时代码保留各自的 MIT 许可，见 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。
 
-对应版本的完整源码可从本仓库和 [Release 源码附件](https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.6.2/bilingual-lite-0.6.2-source.zip) 获取。再分发修改版时，请按许可证保留声明并提供相应源码。本项目不提供任何担保，不保证可靠性或后续维护。
+对应版本的完整源码可从本仓库和 [Release 源码附件](https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.6.3/bilingual-lite-0.6.3-source.zip) 获取。再分发修改版时，请按许可证保留声明并提供相应源码。本项目不提供任何担保，不保证可靠性或后续维护。

@@ -14,7 +14,7 @@ import { checkImageClear } from './image-clear-scenario.mjs';
 import { serveBatchFixture, checkBatch } from './image-batch-scenario.mjs';
 import { checkNativePopup } from './chrome-popup-scenario.mjs';
 const recovery=recoveryMock();
-let toolbarTesting=false;
+let toolbarTesting=false,expectedBudget=1500;
 
 const requests=[];
 const imageRequests=[],snippetRequests=[];let imageDownloads=0;
@@ -44,7 +44,7 @@ const server=createServer(async(req,res)=>{
     if(req.url==='/v1/chat/completions') {
       let raw=''; for await(const part of req) raw+=part; const body=JSON.parse(raw);
       const recoveryReply=recovery.reply(body);if(recoveryReply){res.setHeader('Content-Type','application/json');res.end(recoveryReply);return;}
-      if(Array.isArray(body.messages[1].content)){const snippet=body.messages[1].content[0].text.includes('框内');(snippet?snippetRequests:imageRequests).push(body);assert.equal(body.max_tokens,1500);assert.deepEqual(body.reasoning,{enabled:false});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(snippet?{original:'Test crop',translated:'局部测试译文'}:toolbarTesting?toolbarBubbles:bubbles)}}]}));return;}
+      if(Array.isArray(body.messages[1].content)){const snippet=body.messages[1].content[0].text.includes('框内');(snippet?snippetRequests:imageRequests).push(body);assert.equal(body.max_tokens,expectedBudget);assert.deepEqual(body.reasoning,{enabled:false});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(snippet?{original:'Test crop',translated:'局部测试译文'}:toolbarTesting?toolbarBubbles:bubbles)}}]}));return;}
       requests.push(body);
       assert.equal(req.headers.authorization,'Bearer mock-key');
       const items=JSON.parse(body.messages[1].content);
@@ -271,6 +271,16 @@ try {
   await checkSocial({go:()=>page.goto(`${base}/social`),run:script=>page.evaluate(s=>new Function(s)(),script),wait:script=>page.waitForFunction(s=>new Function(s)(),script),requests:()=>requests});
   toolbarTesting=false;await page.goto(`${base}/manga`);
   await checkImageClear({run:script=>page.evaluate(s=>new Function(s)(),script),wait:script=>page.waitForFunction(s=>new Function(s)(),script),move:(x,y)=>page.mouse.move(x,y),drag:async(x,y,dx,dy)=>{await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+dx,y+dy,{steps:5});await page.mouse.up();},calls:()=>imageRequests.length+snippetRequests.length});
+  expectedBudget=4096;
+  await options.locator('[name=maxOutputTokens]').fill('4096');await options.getByRole('button',{name:'保存设置',exact:true}).click();
+  await options.locator('#status').filter({hasText:'已保存到本机'}).waitFor();await options.reload();
+  await options.waitForFunction(()=>document.querySelector('[name=maxOutputTokens]')?.value==='4096');
+  await page.goto(base);await page.locator('#text-toggle').click();await page.locator('.bl-translation').first().waitFor();
+  assert.equal(requests.at(-1).max_tokens,4096);
+  await page.goto(`${base}/manga`);
+  await checkImageClear({run:script=>page.evaluate(s=>new Function(s)(),script),wait:script=>page.waitForFunction(s=>new Function(s)(),script),move:(x,y)=>page.mouse.move(x,y),drag:async(x,y,dx,dy)=>{await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+dx,y+dy,{steps:5});await page.mouse.up();},calls:()=>imageRequests.length+snippetRequests.length});
+  assert.equal(imageRequests.at(-1).max_tokens,4096);assert.equal(snippetRequests.at(-1).max_tokens,4096);
+  console.log('PASS output budget: persisted 4096 setting reaches text, full-image and crop requests.');
   console.log('PASS Chromium popup: 10 document reloads, fixed width/readable settings/no horizontal overflow; selection message uses existing API and leaves page translation off.');
   console.log('PASS customization: 75/150/100% live controls, persistence, prompt cache invalidation, text/image/snippet requests and restore defaults.');
   console.log('PASS Pixiv HTTPS: before fix 403, full and crop 200, own-extension-only Referer, no Cookie/Authorization, 1280x800 full / 400x200 crop; status disappears after 3 seconds.');

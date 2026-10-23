@@ -2,7 +2,7 @@
 import type { Settings } from './settings';
 import { OutputFormatError } from './translation-error';
 
-export const MAX_OUTPUT_TOKENS = 1500;
+import { outputTokenLimit } from './output-budget';
 export const TEMPERATURE = 0.1;
 export interface TextPart { type: 'text'; text: string }
 export interface ImagePart { type: 'image_url'; image_url: { url: string } }
@@ -85,19 +85,20 @@ export function parseJson(content: unknown): unknown {
 }
 export interface OutputSchema { name:string; schema:Record<string,unknown> }
 export async function complete(s: Settings, model: string, messages: ChatMessage[], shape?:OutputSchema): Promise<unknown> {
+  const maxOutputTokens = outputTokenLimit(s.maxOutputTokens);
   // These two catalog entries were verified to expose structured_outputs.
   // Custom models retain prompt + runtime validation rather than guessed capabilities.
   const structured=shape&&['deepseek/deepseek-v4.1-flash','inclusionai/ling-3.0-flash-vl'].includes(model)
     ? {response_format:{type:'json_schema',json_schema:{...shape,strict:true}},provider:{require_parameters:true}} : {};
   // OpenRouter's documented normalized switch. This is a raw HTTP body, not SDK extra_body.
   const data=await request(s,'/chat/completions',{
-    model,messages,temperature:TEMPERATURE,max_tokens:MAX_OUTPUT_TOKENS,stream:false,
+    model,messages,temperature:TEMPERATURE,max_tokens:maxOutputTokens,stream:false,
     reasoning:{enabled:false},...structured
   }) as CompletionResponse;
   const choice=data.choices?.[0];
   if(choice?.finish_reason==='content_filter'||choice?.message?.refusal)throw new Error('模型服务拒绝处理此内容。本次不会自动重试。');
   if((data.usage?.completion_tokens_details?.reasoning_tokens??0)>0)throw new Error('服务仍消耗了思考 Token，未遵守关闭思考的请求。请更换可禁用思考的模型。');
-  if((data.usage?.completion_tokens??0)>MAX_OUTPUT_TOKENS)throw new Error('服务返回的 Token 用量超过上限，请更换遵守输出限制的模型。');
-  if(choice?.finish_reason==='length')throw new Error('译文达到 1500 Token 上限。请减少文本或使用手动框选；不会自动增加预算。');
+  if((data.usage?.completion_tokens??0)>maxOutputTokens)throw new Error('服务返回的 Token 用量超过上限，请更换遵守输出限制的模型。');
+  if(choice?.finish_reason==='length')throw new Error(`译文达到本次 ${maxOutputTokens} Token 输出上限或模型自身限制。可在设置中提高“输出 Token 上限”后重新开启翻译，或减少文本／使用框选；不会自动提高预算或重发。`);
   return parseJson(choice?.message?.content);
 }

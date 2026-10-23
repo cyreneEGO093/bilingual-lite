@@ -30,7 +30,7 @@
 
 项目主页：https://github.com/cyreneEGO093/bilingual-lite
 
-本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.6.2/bilingual-lite-0.6.2-source.zip
+本版本完整源码：https://github.com/cyreneEGO093/bilingual-lite/releases/download/v0.6.3/bilingual-lite-0.6.3-source.zip
 
 ## Other submission fields
 
@@ -38,20 +38,16 @@
 - Platform: desktop Firefox and Firefox for Android; verify Android compatibility derived from the manifest's `gecko_android` declaration.
 - Icon: `assets/icon-512.png` or `public/icons/128.png` (upload separately).
 - Privacy policy: copy the complete `PRIVACY.md` text into AMO's privacy-policy field.
-- Source attachment: `bilingual-lite-0.6.2-source.zip`; build/review instructions: `BUILDING.md`.
+- Source attachment: `bilingual-lite-0.6.3-source.zip`; build/review instructions: `BUILDING.md`.
 - Homepage: https://github.com/cyreneEGO093/bilingual-lite
 - Support: https://github.com/cyreneEGO093/bilingual-lite/issues (no response or maintenance commitment).
 - Payment disclosure: API service may require a paid account; the extension is free.
 
-## Reviewer notes for 0.6.2
+## Reviewer notes for 0.6.3
 
-This updates the existing add-on and retains its Gecko ID, permissions and Android compatibility. It changes webpage text extraction to prefer X-style `data-testid="tweetText"` bodies over entire tweet cards, excluding author/date/action metadata. It handles short replies, newly hydrated bodies, reused DOM nodes and removed translation siblings. Removed translations are restored from completed local results without new inference; responses for changed sources are ignored.
+This updates the existing add-on with the same Gecko ID, permissions and runtime dependencies. The previously fixed 1500 output-token cap is now configurable in Popup and Options. The default remains 1500, including migration of existing settings. The accepted integer range is 128–65536. The value is stored in storage.local and sent as max_tokens through the existing API client for webpage text, selected text, full-image and crop translation. Invalid values are rejected before inference; truncation errors show the configured limit. Reasoning remains disabled. Requests still obey model limits, existing concurrency, timeout and text-batching rules. The extension does not automatically increase budgets or resend truncated requests. Higher limits may increase cost. Saving settings retains the existing behavior of stopping translation and clearing old results; users must enable translation again.
 
-For a Chinese target only, a conservative check rejects exact copies of sufficiently long Japanese/Korean prose instead of displaying and caching them as successful translations. Failures use the existing manual-retry workflow; this does not automatically retry or add API calls and is not comprehensive language detection. User model selections and custom prompts are retained.
-
-The image toolbar adds “清空译文” (discard translations), separate from the existing hide/restore toggle. It deletes the current image's full/crop overlays, edited positions and matching in-page result cache; other images' displayed results remain. Late results for that image are ignored and its pending entry in the current image batch is skipped. Clearing makes no API request. Translating again may incur charges, and already-sent requests may still complete. It cannot delete provider-side records. Model output remains text-only. No new dependencies, telemetry or remote executable code.
-
-Attach `bilingual-lite-0.6.2-source.zip`. With Node.js 24 and npm 11, extract into an empty directory and run:
+Attach bilingual-lite-0.6.3-source.zip. With Node.js 24 and npm 11, extract into an empty directory and run:
 
 ```text
 npm ci
@@ -61,8 +57,8 @@ npm run lint:firefox
 npm run zip
 ```
 
-Firefox output: `dist/firefox-mv3/` and `dist/bilingual-lite-0.6.2-firefox.zip`. Compare extracted files rather than ZIP timestamps. See `BUILDING.md` and `store/REPRODUCIBILITY.json`.
+Firefox outputs: dist/firefox-mv3/ and dist/bilingual-lite-0.6.3-firefox.zip. See BUILDING.md and store/REPRODUCIBILITY.json. Compare extracted files rather than ZIP timestamps.
 
-Account-free review: run `node scripts/reviewer-server.mjs`, configure API Endpoint `http://127.0.0.1:8787/v1` with an empty API Key, and open `http://127.0.0.1:8787/social`. Test scrolling/whole-page and bilingual/translated-only modes on the synthetic posts. On `/manga`, translate the image, select a crop, click “清空译文”, then translate again. “清除遮罩／恢复遮罩” retains its temporary-hide behavior. `/batch` covers whole-page images. All responses are synthetic; no paid account or bundled API key is required.
+Free review: run node scripts/reviewer-server.mjs; configure API Endpoint http://127.0.0.1:8787/v1 with an empty API Key. Set the output-token field to 4096, save and reopen settings to confirm persistence. Open http://127.0.0.1:8787/ for text and /manga for full/crop translation. Invalid empty, fractional or out-of-range budgets cannot be saved. Responses are synthetic and no paid API account is needed.
 
-Validation: 116 automated tests, Chrome 153 and Firefox 155 extension regressions, and zero Mozilla lint errors/warnings/notices. New tests cover body-only requests, dynamic updates, removed translations, clearing full/crop results, late-response invalidation and new inference after clearing. The real X account/page was not used. Separately, the actual text client completed two live requests to the configured default model using synthetic Korean/Japanese text, with default and synthetic custom prompts. Both reported zero reasoning tokens; total API-reported cost was $0.000220584. See `store/LIVE-TEXT-CHECK.json`; no credentials or private samples are included. These limited tests do not guarantee all content or X layouts. Android's last full emulator validation remains v0.6.0 (Firefox Android 157 / Android 14); this update was not rerun on Android. Source and installation packages were rebuilt independently and compared byte-for-byte.
+Validation: 128 automated tests; Chrome 153 / Firefox 155 regressions; Chrome additionally verifies persisted 4096 reaches text/full-image/crop requests. Mozilla lint: zero errors, warnings or notices. This version used only local mock inference; the live test summary retained in store/LIVE-TEXT-CHECK.json belongs to v0.6.2. Android was not rerun (last full emulator test: v0.6.0). No new telemetry, remote executable code or bundled credentials.

@@ -16,5 +16,14 @@ it('rejects insecure remote endpoints and URL credentials',()=>{
 });
 it('migrates old field names and preserves the existing key',async()=>{
   local.get.mockResolvedValue({settings:{endpoint:'https://example.com/v1',imageModel:'old-vision',language:'日本語',apiKey:'existing-key',textModel:'old-text'}});
-  expect(await getSettings()).toEqual({baseUrl:'https://example.com/v1',visionModel:'old-vision',targetLang:'日本語',apiKey:'existing-key',textModel:'old-text'});
+  expect(await getSettings()).toEqual({baseUrl:'https://example.com/v1',visionModel:'old-vision',targetLang:'日本語',apiKey:'existing-key',textModel:'old-text',maxOutputTokens:1500});
+});
+
+it('persists a numeric output budget from form strings and restores it',async()=>{
+  const settings=validateSettings({...defaults,maxOutputTokens:'8192' as unknown as number});
+  expect(settings.maxOutputTokens).toBe(8192);await saveSettings(settings);
+  local.get.mockResolvedValue({settings});expect((await getSettings()).maxOutputTokens).toBe(8192);
+});
+it.each([0,127,65537,1.5,NaN,Infinity,null,'','unlimited',true])('rejects invalid output budget %s',value=>{
+  expect(()=>validateSettings({...defaults,maxOutputTokens:value as number})).toThrow('Token');
 });

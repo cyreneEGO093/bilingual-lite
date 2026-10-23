@@ -52,3 +52,15 @@ describe('Phase 1: API', () => {
     fetch.mockResolvedValue({ok:true,json:async()=>({usage:{completion_tokens:1501},choices:[{message:{content:'[]'}}]})});await expect(complete(settings,'mock',[])).rejects.toThrow('超过上限');
   });
 });
+
+it('uses the configured budget, accepts output above 1500 and reports the actual limit',async()=>{
+  const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({usage:{completion_tokens:2000},choices:[{message:{content:'[]'}}]})});vi.stubGlobal('fetch',fetch);
+  expect(await complete({...settings,maxOutputTokens:4096},'mock',[])).toEqual([]);
+  expect(JSON.parse(fetch.mock.calls[0]![1].body)).toMatchObject({max_tokens:4096,reasoning:{enabled:false},temperature:.1});
+  fetch.mockResolvedValue({ok:true,json:async()=>({choices:[{finish_reason:'length',message:{content:null}}]})});
+  await expect(complete({...settings,maxOutputTokens:8192},'mock',[])).rejects.toThrow('8192');
+  expect(fetch).toHaveBeenCalledTimes(2);
+  fetch.mockResolvedValue({ok:true,json:async()=>({usage:{completion_tokens:4097},choices:[{message:{content:'[]'}}]})});
+  await expect(complete({...settings,maxOutputTokens:4096},'mock',[])).rejects.toThrow('超过上限');
+  await expect(complete({...settings,maxOutputTokens:0},'mock',[])).rejects.toThrow('Token');expect(fetch).toHaveBeenCalledTimes(3);
+});

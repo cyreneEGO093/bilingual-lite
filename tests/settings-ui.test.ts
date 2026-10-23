@@ -8,10 +8,12 @@ it('saves the actual form and populates vision model choices',async()=>{
   await mountSettings();
   expect((document.querySelector('[name=visionModel]') as HTMLInputElement).value).toBe('deepseek/deepseek-v4.1-flash');
   expect(document.querySelector('a[href="legal/privacy.html"]')).not.toBeNull();
+  const budget=document.querySelector<HTMLInputElement>('[name=maxOutputTokens]')!;expect(budget.value).toBe('1500');budget.value='4096';
   (document.querySelector('[name="apiKey"]') as HTMLInputElement).value='mock-key';
   document.querySelector('form')!.dispatchEvent(new Event('submit',{cancelable:true}));
   await vi.waitFor(()=>expect(api.set).toHaveBeenCalled());
   expect(api.set.mock.calls[0]![0].settings.apiKey).toBe('mock-key');
+  expect(api.set.mock.calls[0]![0].settings.maxOutputTokens).toBe(4096);
   (document.querySelector('#models') as HTMLButtonElement).click();
   await vi.waitFor(()=>expect(document.querySelector('#image-models option')?.getAttribute('value')).toBe('cheap-vision'));
   expect(document.querySelector('#status')?.textContent).toContain('连接成功');

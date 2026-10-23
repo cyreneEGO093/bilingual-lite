@@ -1,6 +1,6 @@
 # Reproducible build / AMO source instructions
 
-Release: 0.6.2. License: GPL-3.0-only, with unmodified MIT runtime components.
+Release: 0.6.3. License: GPL-3.0-only, with unmodified MIT runtime components.
 
 ## Environment and commands
 
@@ -18,7 +18,7 @@ npm run zip
 
 `npm ci` downloads public packages from the official npm registry using `package-lock.json`. The WXT postinstall prepares local types. The optional esbuild native helper is a build tool, not extension runtime code. Do not run `npm update` or replace the lockfile when reproducing this release.
 
-Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.6.2-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
+Outputs are `dist/firefox-mv3/`, `dist/chrome-mv3/` and `dist/bilingual-lite-0.6.3-{firefox,chrome}.zip`. Compare extracted file contents rather than ZIP bytes, since archive timestamps may vary. Minification uses Vite; no obfuscation or remote execution is used. `web-ext` is pinned as a development tool for Mozilla validation and is not included in the installed extension.
 
 PNG icons and legal texts are included in the source archive. `assets/icon.svg` is the original editable artwork. Regenerating PNGs is optional (`node scripts/create-icons.mjs`, with Playwright Chromium installed or `TEST_BROWSER_PATH` set), and is not part of the release build. The build records actually included npm runtime modules under `.wxt/license-audit/`; `npm run audit:licenses` regenerates their notices, module hashes and exact source snapshots. A new runtime dependency fails this audit pending license review.
 
@@ -39,6 +39,8 @@ PNG icons and legal texts are included in the source archive. `assets/icon.svg` 
 These fixtures exercise actual extension networking, rendering and settings, but do not test a third-party model's translation quality. Real inference requires a user's BYOK service account; no credentials are distributed with the source or binary. If reviewers require live-service testing, the publisher must supply any temporary restricted credentials privately through AMO, never inside the public package.
 
 In Options, test “悬浮工具大小” at 75%, 100% and 150% and inspect an already-open page. Under “自定义翻译提示词”, edit the three tasks, save and verify existing translations are cleared without additional requests. New translation requests use the matching task; restore defaults to reset all three. The mock server still returns synthetic text and does not evaluate translation style.
+
+In Popup or Options, change “输出 Token 上限” from 1500 to 4096, save and reopen. Confirm persistence, then restart translation. All four translation tasks use the same per-request budget. The accepted range is 128–65536; invalid/empty inputs cannot be saved. The local mock does not incur charges or evaluate long-generation quality.
 
 ## Optional paid text smoke test
 
@@ -61,7 +63,7 @@ For manual Android review, forward the review server with `adb -s <serial> rever
 
 ## Submission context
 
-- Minimum desktop Firefox 140 and Android Firefox 142, with built-in consent for `websiteContent` and `authenticationInfo`. Submit 0.6.2 as an update to the existing add-on and verify AMO lists Android compatibility as well as desktop. The manifest already declares `gecko_android`; AMO derives its Android range from that declaration ([Mozilla compatibility guidance](https://extensionworkshop.com/documentation/publish/version-compatibility/)). Android validation was last run for v0.6.0 with version 157.0 on an Android 14 emulator; this desktop-focused update was not retested on Android; lower declared versions and physical phones have not been individually tested.
+- Minimum desktop Firefox 140 and Android Firefox 142, with built-in consent for `websiteContent` and `authenticationInfo`. Submit 0.6.3 as an update to the existing add-on and verify AMO lists Android compatibility as well as desktop. The manifest already declares `gecko_android`; AMO derives its Android range from that declaration ([Mozilla compatibility guidance](https://extensionworkshop.com/documentation/publish/version-compatibility/)). Android validation was last run for v0.6.0 with version 157.0 on an Android 14 emulator; this desktop-focused update was not retested on Android; lower declared versions and physical phones have not been individually tested.
 - Broad HTTP(S) host access supports content scripts, user-configurable HTTPS APIs and cross-origin image downloads. Actual remote API and image-download requests require HTTPS; loopback HTTP is allowed for local services. Page content is sent only when translation is enabled or invoked.
 - Pixiv request header adjustment is limited to extension-initiated HTTPS GET requests to `pximg.net`; it sends only the constant `https://www.pixiv.net/` origin as Referer and no site cookies.
 - No analytics, remote scripts, native messaging, downloaded model execution or image inpainting. Model outputs are validated and inserted as text, never executable HTML.
